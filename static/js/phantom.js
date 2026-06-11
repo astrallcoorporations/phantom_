@@ -25,12 +25,29 @@
       s.convos    = s.convos    || [];   // local conversations [{id,title,created}]
       s.joins     = s.joins     || [];   // joined explore-space ids
       s.profile   = s.profile   || null; // {name, handle}
+      s.files     = s.files     || {};   // msgId -> {name,kind,mime,size,content}
       return s;
     },
     _save() { localStorage.setItem(DB_KEY, JSON.stringify(this._state)); },
 
     addMessage(convId, msg) { const s = this._load(); (s.messages[convId] = s.messages[convId] || []).push(msg); this._save(); },
     getMessages(convId) { return this._load().messages[convId] || []; },
+    delMessage(convId, msgId) {
+      const s = this._load();
+      s.messages[convId] = (s.messages[convId] || []).filter((m) => m.id !== msgId);
+      delete s.files[msgId];
+      this._save();
+    },
+    clearMessages(convId) { const s = this._load(); s.messages[convId] = []; this._save(); },
+    removeConvo(convId) {
+      const s = this._load();
+      s.convos = s.convos.filter((c) => c.id !== convId);
+      delete s.messages[convId];
+      this._save();
+    },
+
+    setFile(id, file) { const s = this._load(); s.files[id] = file; this._save(); },
+    getFile(id) { return this._load().files[id] || null; },
 
     setDraft(convId, text) { const s = this._load(); if (text) s.drafts[convId] = text; else delete s.drafts[convId]; this._save(); },
     getDraft(convId) { return this._load().drafts[convId] || ""; },
@@ -443,15 +460,16 @@
      ======================================================================== */
 
   const REACTION_GLYPHS = ["✦", "❍", "△", "↑"];
+  const ME = document.body.dataset.me || "me";
 
-  function bubbleActions(row, msgId, bodyText, convTitle, atmosphere) {
+  function bubbleActions(row, opts) {
     const bar = document.createElement("div");
     bar.className = "bubble-actions";
     REACTION_GLYPHS.forEach((g) => {
       const b = document.createElement("button");
       b.textContent = g;
       b.setAttribute("aria-label", "React " + g);
-      b.addEventListener("click", () => renderReactionChips(row, msgId, store.toggleReaction(msgId, g)));
+      b.addEventListener("click", () => renderReactionChips(row, opts.id, store.toggleReaction(opts.id, g)));
       bar.appendChild(b);
     });
     const pin = document.createElement("button");
@@ -459,14 +477,32 @@
     pin.setAttribute("aria-label", "Pin to moments");
     pin.addEventListener("click", () => {
       store.addPin({
-        id: msgId, kind: "text",
-        title: bodyText.length > 48 ? "“" + bodyText.slice(0, 48) + "…”" : "“" + bodyText + "”",
-        note: "pinned from " + convTitle, source: "you", atmosphere: atmosphere || "glass-cube",
+        id: opts.id, kind: "text",
+        title: opts.body.length > 48 ? "“" + opts.body.slice(0, 48) + "…”" : "“" + opts.body + "”",
+        note: "pinned from " + opts.title, source: "you", atmosphere: opts.atmosphere || "glass-cube",
       });
-      pin.style.color = "#fff";
+      pin.style.color = "var(--p-accent)";
     });
     bar.appendChild(pin);
+    if (opts.mine) {
+      const del = document.createElement("button");
+      del.innerHTML = '<svg class="icon"><use href="#i-trash"/></svg>';
+      del.setAttribute("aria-label", "Delete message");
+      del.addEventListener("click", () => deleteMessage(row, opts));
+      bar.appendChild(del);
+    }
     row.appendChild(bar);
+  }
+
+  function deleteMessage(row, opts) {
+    const chips = row.nextElementSibling && row.nextElementSibling.classList.contains("reaction-chips")
+      ? row.nextElementSibling : null;
+    row.style.opacity = "0.4";
+    const done = () => { if (chips) chips.remove(); row.remove(); };
+    if (opts.local) { store.delMessage(opts.convId, opts.id); done(); return; }
+    fetch("/api/messages/" + encodeURIComponent(row.dataset.id), { method: "DELETE" })
+      .then((r) => (r.ok ? done() : (row.style.opacity = "1")))
+      .catch(() => { row.style.opacity = "1"; });
   }
 
   function renderReactionChips(row, msgId, list) {
@@ -485,27 +521,43 @@
     });
   }
 
-  function appendBubble(scroll, msg, convTitle, atmosphere, isAi) {
+  function makeBubble(scroll, m, ctx) {
     const row = document.createElement("div");
-    row.className = "bubble-row" + (msg.author === "me" ? " me" : "");
-    row.dataset.id = msg.id;
-    if (msg.author !== "me" && isAi) {
-      row.innerHTML = '<span class="avatar avatar--ai" aria-hidden="true"><svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg></span>';
+    row.className = "bubble-row" + (m.mine ? " me" : "");
+    row.dataset.id = m.id;
+    row.dataset.author = m.author || "";
+    row.dataset.mine = m.mine ? "1" : "0";
+    if (!m.mine) {
+      const av = document.createElement("span");
+      av.className = "avatar" + (ctx.isAi ? " avatar--ai" : "");
+      av.setAttribute("aria-hidden", "true");
+      av.innerHTML = ctx.isAi
+        ? '<svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg>'
+        : (m.author || "?").slice(0, 2).toLowerCase();
+      row.appendChild(av);
     }
-    const bubble = document.createElement("div");
-    if (msg.kind === "file") {
-      bubble.className = "bubble bubble--file";
-      bubble.innerHTML = '<svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg><span></span><span class="fsize"></span>';
-      bubble.children[1].textContent = msg.body;
-      bubble.children[2].textContent = (msg.meta && msg.meta.size) || "";
+    if (m.kind === "file" || m.kind === "image") {
+      const b = document.createElement("button");
+      b.className = "bubble bubble--file";
+      b.dataset.fileId = m.id;
+      b.dataset.fileName = m.body;
+      b.dataset.fileKind = m.kind;
+      b.dataset.fileMeta = JSON.stringify(m.meta || {});
+      b.innerHTML = '<svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg><span></span><span class="fsize"></span>';
+      b.children[1].textContent = m.body;
+      b.children[2].textContent = (m.meta && m.meta.size) || "open";
+      b.addEventListener("click", () => openFileViewer(b));
+      row.appendChild(b);
     } else {
-      bubble.className = "bubble";
-      bubble.textContent = msg.body;
+      const b = document.createElement("div");
+      b.className = "bubble";
+      b.textContent = m.body;
+      row.appendChild(b);
     }
-    row.appendChild(bubble);
-    bubbleActions(row, msg.id, msg.body, convTitle, atmosphere);
     scroll.appendChild(row);
-    renderReactionChips(row, msg.id);
+    bubbleActions(row, { id: m.id, body: m.body, title: ctx.title, atmosphere: ctx.atmosphere,
+                         mine: m.mine, local: ctx.isLocal, convId: ctx.convId });
+    renderReactionChips(row, m.id);
     return row;
   }
 
@@ -514,43 +566,36 @@
     if (!form) return;
     const input = form.querySelector("input[name=body]");
     const scroll = document.getElementById("chat-scroll");
-    // static deploys rewrite local-*/dm-* pages onto a template — recover the
-    // real conversation id and title from the URL
-    if (/-template$/.test(form.dataset.conv)) {
-      const slug = location.pathname.split("/").filter(Boolean).pop();
-      if (slug && !/-template$/.test(slug)) form.dataset.conv = slug;
-      const t = new URLSearchParams(location.search).get("t");
-      if (t) {
-        form.dataset.title = t;
-        const titleEl = document.getElementById("chat-title");
-        if (titleEl) titleEl.textContent = t;
-      }
-    }
     const convId = form.dataset.conv;
-    const convTitle = form.dataset.title || "conversation";
+    const title = form.dataset.title || "conversation";
     const atmosphere = form.dataset.atmosphere || "glass-cube";
     const isAi = form.dataset.ai === "1";
     const isLocal = form.dataset.local === "1";
+    const ctx = { title, atmosphere, isAi, isLocal, convId };
 
+    // wire server-rendered bubbles (reactions, pins, delete, file-open)
     scroll.querySelectorAll(".bubble-row[data-id]").forEach((row) => {
       const id = row.dataset.id;
+      const mine = row.dataset.mine === "1";
+      const fileBtn = row.querySelector(".bubble--file");
+      if (fileBtn) fileBtn.addEventListener("click", () => openFileViewer(fileBtn));
       const body = (row.querySelector(".bubble") || {}).textContent || "";
-      bubbleActions(row, id, body.trim(), convTitle, atmosphere);
+      bubbleActions(row, { id, body: body.trim(), title, atmosphere, mine, local: isLocal, convId });
       renderReactionChips(row, id);
     });
 
-    store.getMessages(convId).forEach((m) => appendBubble(scroll, m, convTitle, atmosphere, isAi));
+    // local conversations live entirely in localStorage
+    if (isLocal) store.getMessages(convId).forEach((m) => makeBubble(scroll, { ...m, mine: true }, ctx));
 
     input.value = store.getDraft(convId);
     input.addEventListener("input", () => store.setDraft(convId, input.value));
 
     function aiHistory() {
       return [...scroll.querySelectorAll(".bubble-row")].map((row) => ({
-        role: row.classList.contains("me") ? "me" : "ai",
+        role: row.dataset.mine === "1" ? "me" : "ai",
         text: (row.querySelector(".bubble") || {}).textContent || "",
       })).filter((m) => m.text);
     }
-
     function showTyping() {
       const tip = document.createElement("div");
       tip.className = "typing";
@@ -568,45 +613,48 @@
       input.value = "";
       store.setDraft(convId, "");
 
-      const history = isAi ? aiHistory() : null;
-      const msg = { id: "c" + Date.now().toString(36), author: "me", body, kind: "text", ts: Date.now() / 1000 };
-      store.addMessage(convId, msg);
-      appendBubble(scroll, msg, convTitle, atmosphere, isAi);
-      scroll.scrollTop = scroll.scrollHeight;
-
       if (isAi) {
+        makeBubble(scroll, { id: "tmp" + Date.now(), author: ME, body, kind: "text", mine: true }, ctx);
+        scroll.scrollTop = scroll.scrollHeight;
         const tip = showTyping();
         try {
           const res = await fetch("/api/assistant", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: body, history }),
+            body: JSON.stringify({ message: body, history: aiHistory() }),
           });
           const data = await res.json();
           tip.remove();
-          const reply = { id: "a" + Date.now().toString(36), author: "ai", body: data.reply || "…", kind: "text", ts: Date.now() / 1000 };
-          store.addMessage(convId, reply);
-          appendBubble(scroll, reply, convTitle, atmosphere, true);
+          makeBubble(scroll, { id: "ai" + Date.now(), author: "ai", body: data.reply || "…", kind: "text", mine: false }, ctx);
         } catch {
           tip.remove();
-          appendBubble(scroll, { id: "e" + Date.now().toString(36), author: "ai", body: "I couldn't reach the server. Check that phantom is running.", kind: "text" }, convTitle, atmosphere, true);
+          makeBubble(scroll, { id: "e" + Date.now(), author: "ai", body: "I couldn't reach the server.", kind: "text", mine: false }, ctx);
         }
         scroll.scrollTop = scroll.scrollHeight;
         return;
       }
 
-      const receipt = document.createElement("div");
-      receipt.className = "receipt";
-      receipt.textContent = "…";
-      scroll.appendChild(receipt);
+      if (isLocal) {
+        const m = { id: "c" + Date.now().toString(36), author: ME, body, kind: "text", mine: true };
+        store.addMessage(convId, m);
+        makeBubble(scroll, m, ctx);
+        scroll.scrollTop = scroll.scrollHeight;
+        return;
+      }
+
+      // dm / space — persist to Supabase, swap in the real id for delete
+      const optimistic = makeBubble(scroll, { id: "tmp" + Date.now(), author: ME, body, kind: "text", mine: true }, ctx);
       scroll.scrollTop = scroll.scrollHeight;
-      if (isLocal) { receipt.textContent = "saved on this device"; return; }
-      fetch(`/api/conversations/${convId}/messages`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
-      }).then((res) => { receipt.textContent = res.ok ? t("delivered") : "saved locally"; })
-        .catch(() => { receipt.textContent = "saved locally"; });
+      try {
+        const res = await fetch(`/api/conversations/${convId}/messages`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body }),
+        });
+        const data = await res.json();
+        if (data.id) optimistic.dataset.id = data.id;
+      } catch { /* stays on screen; reload re-syncs from Supabase */ }
     });
 
+    // attachments — capture content for the inbuilt viewer, send a file message
     const fileInput = document.getElementById("file-input");
     const attachBtn = document.getElementById("attach-btn");
     if (attachBtn && fileInput) {
@@ -615,15 +663,181 @@
         const f = fileInput.files[0];
         if (!f) return;
         const size = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + " MB" : Math.ceil(f.size / 1024) + " KB";
-        const msg = { id: "c" + Date.now().toString(36), author: "me", body: f.name, kind: "file", meta: { size }, ts: Date.now() / 1000 };
-        store.addMessage(convId, msg);
-        appendBubble(scroll, msg, convTitle, atmosphere, isAi);
-        scroll.scrollTop = scroll.scrollHeight;
-        fileInput.value = "";
+        const kind = (f.type.startsWith("image/") || f.type.startsWith("video/")) ? "image" : "file";
+        const isText = /^text\/|json|javascript|css|html|xml|markdown|csv/.test(f.type)
+          || /\.(txt|md|js|mjs|ts|py|css|html?|json|csv|java|c|cpp|rb|go|rs|sh|yml|yaml)$/i.test(f.name);
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const meta = { size, mime: f.type };
+          let id = "f" + Date.now().toString(36);
+          if (!isLocal && !isAi) {
+            try {
+              const res = await fetch(`/api/conversations/${convId}/messages`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ body: f.name, kind, meta }),
+              });
+              const data = await res.json();
+              if (data.id) id = data.id;
+            } catch { /* keep temp id */ }
+          }
+          store.setFile(id, { name: f.name, kind, mime: f.type, size, content: reader.result, text: isText });
+          if (isLocal) store.addMessage(convId, { id, author: ME, body: f.name, kind, meta, mine: true });
+          makeBubble(scroll, { id, author: ME, body: f.name, kind, meta, mine: true }, ctx);
+          scroll.scrollTop = scroll.scrollHeight;
+          fileInput.value = "";
+        };
+        if (isText) reader.readAsText(f); else reader.readAsDataURL(f);
       });
     }
 
+    initConvMenu();
     scroll.scrollTop = scroll.scrollHeight;
+  }
+
+  /* ========================================================================
+     Conversation menu — clear / delete space / leave / add member
+     ======================================================================== */
+
+  function initConvMenu() {
+    const btn = document.getElementById("conv-menu-btn");
+    const menu = document.getElementById("conv-menu");
+    const head = document.querySelector(".chat-head");
+    if (btn && menu) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const open = menu.hidden;
+        menu.hidden = !open;
+        btn.setAttribute("aria-expanded", String(open));
+      });
+      document.addEventListener("click", () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); });
+      menu.addEventListener("click", (e) => e.stopPropagation());
+    }
+    const clear = menu && menu.querySelector("[data-conv-clear]");
+    if (clear) clear.addEventListener("click", () => {
+      if (!confirm("Clear every message in this conversation? This cannot be undone.")) return;
+      const id = head.dataset.convId;
+      fetch("/api/conversations/" + encodeURIComponent(id), { method: "DELETE" })
+        .then(() => window.location.reload());
+    });
+    const addBtn = document.getElementById("add-member-btn");
+    if (addBtn && head) addBtn.addEventListener("click", async () => {
+      const u = prompt("Add a member by username:");
+      if (!u) return;
+      const res = await fetch(`/api/spaces/${head.dataset.spaceId}/members`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: u }),
+      });
+      const data = await res.json();
+      alert(res.ok ? `Added ${data.added}` : (data.error || "Could not add member."));
+    });
+  }
+
+  /* ========================================================================
+     File viewer — images, video, audio, pdf, text/code (+ run code)
+     ======================================================================== */
+
+  function fileType(name, mime) {
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    if ((mime || "").startsWith("image/") || /^(png|jpe?g|gif|webp|svg|bmp|avif)$/.test(ext)) return "image";
+    if ((mime || "").startsWith("video/") || /^(mp4|webm|mov|m4v|ogv)$/.test(ext)) return "video";
+    if ((mime || "").startsWith("audio/") || /^(mp3|wav|ogg|m4a|flac)$/.test(ext)) return "audio";
+    if (ext === "pdf" || (mime || "").includes("pdf")) return "pdf";
+    if (/^(html?|js|mjs|css|json|md|txt|csv|xml|yml|yaml|py|ts|tsx|jsx|java|c|cpp|rb|go|rs|sh)$/.test(ext)) return "code";
+    return "other";
+  }
+  const RUNNABLE = { html: "html", htm: "html", js: "js", mjs: "js", css: "css" };
+
+  function openFileViewer(btn) {
+    const modal = document.getElementById("file-viewer");
+    const body = document.getElementById("fv-body");
+    const name = btn.dataset.fileName || "file";
+    const meta = JSON.parse(btn.dataset.fileMeta || "{}");
+    const file = store.getFile(btn.dataset.fileId);
+    const type = fileType(name, (file && file.mime) || meta.mime);
+    const ext = (name.split(".").pop() || "").toLowerCase();
+
+    document.getElementById("fv-name").textContent = name;
+    document.getElementById("fv-meta").textContent = [meta.size, (file && file.mime) || meta.mime].filter(Boolean).join(" · ");
+    body.innerHTML = "";
+    const runBtn = document.getElementById("fv-run");
+    const dl = document.getElementById("fv-download");
+    runBtn.hidden = true; dl.hidden = true;
+
+    if (!file) {
+      body.innerHTML = '<div class="fv-empty"><p>This file was shared from another device, so its contents aren\'t stored here. Re-attach it to preview.</p></div>';
+      openModal(modal);
+      return;
+    }
+
+    if (file.content && !file.text) { dl.href = file.content; dl.download = name; dl.hidden = false; }
+
+    if (type === "image") {
+      const img = document.createElement("img");
+      img.src = file.content; img.alt = name; img.className = "fv-media";
+      body.appendChild(img);
+    } else if (type === "video") {
+      const v = document.createElement("video");
+      v.src = file.content; v.controls = true; v.className = "fv-media";
+      body.appendChild(v);
+    } else if (type === "audio") {
+      const a = document.createElement("audio");
+      a.src = file.content; a.controls = true; a.style.width = "100%";
+      body.appendChild(a);
+    } else if (type === "pdf") {
+      const f = document.createElement("iframe");
+      f.src = file.content; f.className = "fv-frame";
+      body.appendChild(f);
+    } else {
+      // code / text
+      const text = file.text ? file.content : "(binary file — download to view)";
+      const pre = document.createElement("pre");
+      pre.className = "fv-code";
+      pre.textContent = text;
+      body.appendChild(pre);
+      const out = document.createElement("div");
+      out.className = "fv-output";
+      out.hidden = true;
+      body.appendChild(out);
+      if (RUNNABLE[ext] && file.text) {
+        runBtn.hidden = false;
+        runBtn.onclick = () => runCode(RUNNABLE[ext], text, out);
+      }
+    }
+    openModal(modal);
+  }
+
+  function runCode(lang, source, out) {
+    out.hidden = false;
+    out.innerHTML = '<div class="fv-out-bar">OUTPUT</div>';
+    const frame = document.createElement("iframe");
+    frame.className = "fv-run-frame";
+    frame.setAttribute("sandbox", "allow-scripts allow-modals");
+    out.appendChild(frame);
+    const log = document.createElement("pre");
+    log.className = "fv-log";
+    out.appendChild(log);
+
+    const capture = `<script>
+      const send=(t,a)=>parent.postMessage({__phantom:1,t,m:[...a].map(x=>{try{return typeof x==='object'?JSON.stringify(x):String(x)}catch(e){return String(x)}}).join(' ')},'*');
+      ['log','warn','error','info'].forEach(k=>{const o=console[k];console[k]=function(){send(k,arguments);o.apply(console,arguments)}});
+      window.onerror=(m)=>send('error',[m]);
+    <\/script>`;
+    let doc;
+    if (lang === "html") doc = source.replace(/<head[^>]*>/i, (m) => m + capture) || capture + source;
+    else if (lang === "css") doc = `<!doctype html>${capture}<style>${source}</style><body><h1>Heading</h1><p>Paragraph text with a <a href="#">link</a>.</p><button>Button</button></body>`;
+    else doc = `<!doctype html>${capture}<body><script>${source}<\/script></body>`;
+    if (lang === "html" && !/<head/i.test(source)) doc = capture + source;
+    frame.srcdoc = doc;
+
+    const onMsg = (e) => {
+      if (!e.data || !e.data.__phantom) return;
+      const line = document.createElement("div");
+      line.className = "fv-log-" + e.data.t;
+      line.textContent = e.data.m;
+      log.appendChild(line);
+    };
+    window.addEventListener("message", onMsg);
+    frame.addEventListener("load", () => setTimeout(() => {}, 50), { once: true });
   }
 
   /* ========================================================================
@@ -676,17 +890,171 @@
      Spaces — join buttons
      ======================================================================== */
 
-  function initSpaces() {
-    document.querySelectorAll("[data-join]").forEach((btn) => {
-      const id = btn.dataset.join;
-      const paint = (joined) => {
-        btn.textContent = joined ? "Joined" : "Join";
-        btn.classList.toggle("btn--solid", !joined);
-        btn.setAttribute("aria-pressed", String(joined));
-      };
-      paint(store.isJoined(id));
-      btn.addEventListener("click", () => paint(store.toggleJoin(id)));
+  function openModal(modal) {
+    if (!modal) return;
+    modal.classList.add("open");
+    const first = modal.querySelector("input, button:not([data-modal-close])");
+    if (first) setTimeout(() => first.focus(), 40);
+  }
+  function closeModal(modal) { if (modal) modal.classList.remove("open"); }
+
+  function initModals() {
+    document.querySelectorAll(".modal-backdrop").forEach((m) => {
+      m.addEventListener("click", (e) => { if (e.target === m) closeModal(m); });
     });
+    document.querySelectorAll("[data-modal-close]").forEach((b) =>
+      b.addEventListener("click", () => closeModal(b.closest(".modal-backdrop"))));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") document.querySelectorAll(".modal-backdrop.open").forEach(closeModal);
+    });
+    document.querySelectorAll("[data-create-space]").forEach((b) =>
+      b.addEventListener("click", () => openModal(document.getElementById("space-modal"))));
+  }
+
+  /* ---- create-space modal ---- */
+  function initSpaceModal() {
+    const form = document.getElementById("space-form");
+    if (!form) return;
+    const picks = { atmosphere: "moon-horizon", skin: "dark", visibility: "public" };
+    const members = [];
+
+    form.querySelectorAll("[data-picker]").forEach((group) => {
+      group.querySelectorAll("[data-value]").forEach((tile) => {
+        tile.addEventListener("click", () => {
+          picks[group.dataset.picker] = tile.dataset.value;
+          group.querySelectorAll("[data-value]").forEach((x) => x.setAttribute("aria-pressed", String(x === tile)));
+          if (group.dataset.picker === "visibility") {
+            document.getElementById("vis-hint").textContent = tile.dataset.value === "private"
+              ? "Private — only people you add can find or open it."
+              : "Public — anyone can find and join this space.";
+          }
+        });
+      });
+    });
+
+    const memInput = document.getElementById("member-input");
+    const chips = document.getElementById("member-chips");
+    function addChip(name) {
+      name = name.trim().replace(/^@/, "").toLowerCase();
+      if (!name || members.includes(name)) return;
+      members.push(name);
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.innerHTML = "@" + name + ' <button type="button" aria-label="Remove">×</button>';
+      chip.querySelector("button").addEventListener("click", () => {
+        members.splice(members.indexOf(name), 1); chip.remove();
+      });
+      chips.appendChild(chip);
+    }
+    memInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addChip(memInput.value); memInput.value = ""; }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = document.getElementById("space-error");
+      err.textContent = "";
+      if (memInput.value.trim()) { addChip(memInput.value); memInput.value = ""; }
+      const payload = {
+        name: form.name.value, tagline: form.tagline.value,
+        atmosphere: picks.atmosphere, skin: picks.skin,
+        visibility: picks.visibility, members,
+      };
+      const submit = form.querySelector("button[type=submit]");
+      submit.disabled = true; submit.textContent = "Creating…";
+      try {
+        const res = await fetch("/api/spaces", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) { err.textContent = data.error || "Could not create the space."; submit.disabled = false; submit.textContent = "Create space"; return; }
+        window.location.href = "/app/messages/" + data.conv_id;
+      } catch {
+        err.textContent = "Could not reach the server.";
+        submit.disabled = false; submit.textContent = "Create space";
+      }
+    });
+  }
+
+  /* ---- space actions: join / delete / leave ---- */
+  function initSpaceActions() {
+    document.querySelectorAll("[data-join-space]").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        btn.disabled = true; btn.textContent = "Joining…";
+        const res = await fetch(`/api/spaces/${btn.dataset.joinSpace}/join`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) window.location.href = "/app/messages/" + data.conv_id;
+        else { btn.disabled = false; btn.textContent = "Join"; alert(data.error || "Could not join."); }
+      }));
+    document.querySelectorAll("[data-del-space]").forEach((btn) =>
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (!confirm("Delete this space for everyone? This removes all its messages.")) return;
+        const res = await fetch("/api/spaces/" + btn.dataset.delSpace, { method: "DELETE" });
+        if (res.ok) window.location.href = "/app/spaces";
+        else alert("Could not delete the space.");
+      }));
+    document.querySelectorAll("[data-leave-space]").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        if (!confirm("Leave this space?")) return;
+        await fetch(`/api/spaces/${btn.dataset.leaveSpace}/leave`, { method: "POST" });
+        window.location.href = "/app/messages";
+      }));
+  }
+
+  /* ---- people: search on Enter, add + remove contacts ---- */
+  function initPeople() {
+    const form = document.getElementById("people-search");
+    if (form) {
+      const q = document.getElementById("people-q");
+      const box = document.getElementById("people-results");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const v = q.value.trim();
+        if (v.length < 2) { box.hidden = true; return; }
+        box.hidden = false;
+        box.innerHTML = '<div class="empty" style="padding:16px"><p style="font-size:12px">Searching…</p></div>';
+        try {
+          const res = await fetch("/api/users/find?q=" + encodeURIComponent(v));
+          const data = await res.json();
+          box.innerHTML = "";
+          if (!data.results.length) {
+            box.innerHTML = '<div class="empty" style="padding:16px"><p style="font-size:12px">No one found with that username.</p></div>';
+            return;
+          }
+          data.results.forEach((r) => {
+            const row = document.createElement("div");
+            row.className = "row-item";
+            row.innerHTML = '<span class="avatar" aria-hidden="true"></span>' +
+              '<div style="min-width:0;flex:1"><div class="name"></div><div class="sub mono"></div></div>' +
+              '<button class="btn btn--sm btn--solid end">Add</button>';
+            row.querySelector(".avatar").textContent = (r.display_name || r.handle)[0].toLowerCase() + "_";
+            row.querySelector(".name").textContent = r.display_name || r.handle;
+            row.querySelector(".sub").textContent = "@" + r.handle;
+            row.querySelector("button").addEventListener("click", async (ev) => {
+              const b = ev.target;
+              const resp = await fetch("/api/contacts", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contact: r.handle }),
+              });
+              const out = await resp.json();
+              b.textContent = resp.ok ? "Added ✓" : (out.error || "Failed");
+              b.classList.remove("btn--solid");
+              if (resp.ok) setTimeout(() => window.location.reload(), 600);
+            });
+            box.appendChild(row);
+          });
+        } catch { box.innerHTML = '<div class="empty" style="padding:16px"><p style="font-size:12px">Search failed.</p></div>'; }
+      });
+    }
+    document.querySelectorAll("[data-del-contact]").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const row = btn.closest("[data-contact]");
+        row.style.opacity = "0.4";
+        const res = await fetch("/api/contacts/" + encodeURIComponent(btn.dataset.delContact), { method: "DELETE" });
+        if (res.ok) row.remove(); else row.style.opacity = "1";
+      }));
   }
 
   /* ========================================================================
@@ -856,9 +1224,12 @@
     initPrefControls();
     initCommandCenter();
     renderLocalConvos();
+    initModals();
+    initSpaceModal();
+    initSpaceActions();
+    initPeople();
     initMessages();
     initMoments();
-    initSpaces();
     initMedia();
     initOnboarding();
     initMotion();

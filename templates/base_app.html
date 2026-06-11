@@ -10,7 +10,7 @@
   <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
 </head>
-<body data-view="{{ view }}" data-guest="{{ '1' if user.guest else '0' }}"{% if ghost %} class="ghost-on"{% endif %}>
+<body data-view="{{ view }}" data-guest="{{ '1' if user.guest else '0' }}" data-me="{{ my_handle }}"{% if ghost %} class="ghost-on"{% endif %}>
   {% include "_icons.html" %}
   <a class="skip-link" href="#main-content">skip to content</a>
   <div class="grain" aria-hidden="true"></div>
@@ -46,17 +46,23 @@
         {% endfor %}
       </div>
 
-      <div class="rail-section" aria-label="Active spaces">
-        <span class="label">ACTIVE SPACES
-          <a class="icon-btn" href="{{ url_for('spaces_view') }}" aria-label="All spaces" style="color:inherit">
+      <div class="rail-section" aria-label="Your spaces">
+        <span class="label">YOUR SPACES
+          <button class="icon-btn" data-create-space aria-label="Create space" style="color:inherit">
             <svg class="icon" style="width:11px;height:11px"><use href="#i-plus"/></svg>
-          </a>
+          </button>
         </span>
-        {% for s in spaces.values() %}
-        <a class="rail-space" href="{{ url_for('spaces_view') }}">
-          <span class="thumb" style="background-image:url('{{ url_for('static', filename=atmospheres[s.atmosphere].src) }}')" aria-hidden="true"></span>
+        {% for s in spaces %}
+        <a class="rail-space" href="{{ url_for('messages', conv_id='space-' + s.id) }}">
+          <span class="thumb" style="background-image:url('{{ url_for('static', filename=atmospheres.get(s.atmosphere, atmospheres['moon-horizon']).src) }}')" aria-hidden="true"></span>
           {{ s.name }}
+          {% if s.visibility == 'private' %}<svg class="icon" style="width:10px;height:10px;margin-inline-start:auto;opacity:0.6"><use href="#i-lock"/></svg>{% endif %}
         </a>
+        {% else %}
+        <button class="rail-space" data-create-space style="width:100%;color:var(--p-text-4)">
+          <span class="thumb" style="display:grid;place-items:center" aria-hidden="true">+</span>
+          Create your first
+        </button>
         {% endfor %}
       </div>
 
@@ -101,15 +107,93 @@
     </div>
   </div>
 
+  <!-- Create space modal -->
+  <div class="modal-backdrop" id="space-modal" role="dialog" aria-modal="true" aria-label="Create a space">
+    <form class="modal panel" id="space-form">
+      <div class="modal-head">
+        <h2>Create a space</h2>
+        <button type="button" class="icon-btn" data-modal-close aria-label="Close">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label">Name</label>
+        <div class="field"><input type="text" name="name" placeholder="e.g. Frozen Peaks" maxlength="60" required></div>
+
+        <label class="field-label">Tagline <span class="muted">(optional)</span></label>
+        <div class="field"><input type="text" name="tagline" placeholder="A line that sets the mood" maxlength="80"></div>
+
+        <label class="field-label">Background</label>
+        <div class="picker-grid" data-picker="atmosphere">
+          {% for key, a in atmospheres.items() %}
+          <button type="button" class="picker-tile" data-value="{{ key }}" aria-pressed="{{ 'true' if key == 'moon-horizon' else 'false' }}" aria-label="{{ a.label }}">
+            <img src="{{ url_for('static', filename=a.src) }}" alt="" loading="lazy">
+            <span>{{ a.label }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        <label class="field-label">Theme</label>
+        <div class="picker-row" data-picker="skin">
+          {% for skin, label, c in [('dark','Dark','#0f0f12'), ('onyx','Onyx','#000'), ('light','Light','#ecedf1'), ('contrast','Contrast','#000')] %}
+          <button type="button" class="skin-chip" data-value="{{ skin }}" aria-pressed="{{ 'true' if skin == 'dark' else 'false' }}">
+            <span class="dot" style="background:{{ c }}"></span>{{ label }}
+          </button>
+          {% endfor %}
+        </div>
+
+        <label class="field-label">Visibility</label>
+        <div class="seg" data-picker="visibility">
+          <button type="button" class="seg-btn" data-value="public" aria-pressed="true">
+            <svg class="icon" style="width:13px;height:13px"><use href="#i-globe"/></svg> Public</button>
+          <button type="button" class="seg-btn" data-value="private" aria-pressed="false">
+            <svg class="icon" style="width:13px;height:13px"><use href="#i-lock"/></svg> Private</button>
+        </div>
+        <p class="muted" id="vis-hint" style="font-size:11.5px;margin-top:4px">Anyone can find and join a public space.</p>
+
+        <label class="field-label">Add members <span class="muted">(by username)</span></label>
+        <div class="field">
+          <input type="text" id="member-input" placeholder="type a username, press Enter" autocomplete="off">
+        </div>
+        <div class="chips" id="member-chips"></div>
+      </div>
+      <div class="modal-foot">
+        <span class="form-error" id="space-error"></span>
+        <button type="button" class="btn btn--quiet" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn--solid">Create space</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Universal file viewer -->
+  <div class="modal-backdrop" id="file-viewer" role="dialog" aria-modal="true" aria-label="File viewer">
+    <div class="modal panel viewer">
+      <div class="modal-head">
+        <h2 id="fv-name">file</h2>
+        <span class="mono" id="fv-meta" style="font-size:10px;color:var(--p-text-4)"></span>
+        <span style="margin-inline-start:auto;display:flex;gap:4px">
+          <button class="btn btn--sm" id="fv-run" hidden>
+            <svg class="icon" style="width:12px;height:12px"><use href="#i-play"/></svg> Run</button>
+          <a class="btn btn--sm" id="fv-download" download hidden>Download</a>
+          <button class="icon-btn" data-modal-close aria-label="Close">
+            <svg class="icon"><use href="#i-close"/></svg></button>
+        </span>
+      </div>
+      <div class="viewer-body" id="fv-body"></div>
+    </div>
+  </div>
+
   <script type="application/json" id="cmdk-data">[
     {"title": "Phantom AI", "hint": "assistant", "href": "/app/messages/ai"},
-    {% for s in spaces.values() %}
-    {"title": {{ s.name | tojson }}, "hint": "space", "href": "/app/spaces"},
+    {"title": "Create a space", "hint": "action", "action": "create-space", "href": "#"},
+    {% for s in spaces %}
+    {"title": {{ s.name | tojson }}, "hint": "space", "href": "/app/messages/space-{{ s.id }}"},
     {% endfor %}
     {"title": "Toggle ghost mode", "hint": "action", "action": "ghost", "href": "#"},
     {"title": "New conversation", "hint": "action", "action": "new-convo", "href": "#"},
     {"title": "Moments timeline", "hint": "go to", "href": "/app/moments"},
     {"title": "Media library", "hint": "go to", "href": "/app/media"},
+    {"title": "People", "hint": "go to", "href": "/app/people"},
     {"title": "Settings", "hint": "go to", "href": "/app/settings"}
   ]</script>
 

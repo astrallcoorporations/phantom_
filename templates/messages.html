@@ -13,6 +13,7 @@
     <div class="tabs" role="tablist" aria-label="Filter conversations">
       <button role="tab" aria-selected="true" data-convo-tab="all">All</button>
       <button role="tab" aria-selected="false" data-convo-tab="ai">AI</button>
+      <button role="tab" aria-selected="false" data-convo-tab="space">Spaces</button>
       <button role="tab" aria-selected="false" data-convo-tab="local">Local</button>
     </div>
   </div>
@@ -24,23 +25,35 @@
       </span>
       <div class="meta">
         <div class="name">Phantom AI <span class="presence presence--online" role="img" aria-label="online"></span></div>
-        <div class="last">{{ 'your private assistant' if ai_ready else 'needs a gemini key — see .env' }}</div>
+        <div class="last">{{ 'your private assistant' if ai_ready else 'add a gemini key to connect' }}</div>
       </div>
     </a>
+    {% for s in spaces %}
+    <a class="convo-item {{ 'active' if active and active.id == 'space-' + s.id }}" data-kind="space"
+       href="{{ url_for('messages', conv_id='space-' + s.id) }}">
+      <span class="avatar" style="background:url('{{ url_for('static', filename=atmospheres.get(s.atmosphere, atmospheres['moon-horizon']).src) }}') center/cover" aria-hidden="true"></span>
+      <div class="meta">
+        <div class="name">{{ s.name }}{% if s.visibility == 'private' %} <svg class="icon" style="width:10px;height:10px;opacity:0.6"><use href="#i-lock"/></svg>{% endif %}</div>
+        <div class="last">{{ s.members }} member{{ '' if s.members == 1 else 's' }}</div>
+      </div>
+    </a>
+    {% endfor %}
     <!-- local conversations injected by phantom.js -->
   </div>
 </aside>
 
 <div class="content panel">
-  {% if active %}
+  {% if active and active.allowed %}
   <div class="atmosphere atm-{{ active.atmosphere }}" aria-hidden="true"></div>
 
   <div class="chat">
-    <header class="chat-head">
+    <header class="chat-head"
+            data-conv-id="{{ active.id }}" data-conv-type="{{ active.type }}"
+            {% if active.space %}data-space-id="{{ active.space.id }}" data-space-owner="{{ active.space.owner }}"{% endif %}>
       {% if active.type == 'ai' %}
-      <span class="avatar avatar--ai" aria-hidden="true">
-        <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
-      </span>
+      <span class="avatar avatar--ai" aria-hidden="true"><svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg></span>
+      {% elif active.type == 'space' %}
+      <span class="avatar" style="background:url('{{ url_for('static', filename=atmospheres.get(active.atmosphere, atmospheres['moon-horizon']).src) }}') center/cover" aria-hidden="true"></span>
       {% else %}
       <span class="avatar" aria-hidden="true">{{ active.title[:2] | lower }}</span>
       {% endif %}
@@ -49,27 +62,48 @@
         <div class="sub">{{ active.sub }}</div>
       </div>
       <div class="actions">
-        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Start audio call">
-          <svg class="icon"><use href="#i-calls"/></svg>
-        </a>
-        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Start video call">
-          <svg class="icon"><use href="#i-video"/></svg>
-        </a>
-        <button class="icon-btn" data-cmdk-open aria-label="Search">
-          <svg class="icon"><use href="#i-search"/></svg>
+        {% if active.type == 'space' and active.space.owner == my_handle %}
+        <button class="icon-btn" id="add-member-btn" aria-label="Add member" title="Add member">
+          <svg class="icon"><use href="#i-people"/></svg>
         </button>
+        {% endif %}
+        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Start call"><svg class="icon"><use href="#i-calls"/></svg></a>
+        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Video call"><svg class="icon"><use href="#i-video"/></svg></a>
+        <div class="menu-wrap">
+          <button class="icon-btn" id="conv-menu-btn" aria-label="Conversation options" aria-haspopup="true" aria-expanded="false">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+          </button>
+          <div class="menu" id="conv-menu" hidden>
+            <button data-conv-clear><svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg> Clear conversation</button>
+            {% if active.type == 'space' and active.space.owner == my_handle %}
+            <button class="danger" data-del-space="{{ active.space.id }}"><svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg> Delete space</button>
+            {% elif active.type == 'space' %}
+            <button class="danger" data-leave-space="{{ active.space.id }}"><svg class="icon" style="width:13px;height:13px"><use href="#i-logout"/></svg> Leave space</button>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </header>
 
     <div class="chat-scroll" id="chat-scroll" aria-live="polite">
       {% for m in active.messages %}
-      <div class="bubble-row {{ 'me' if m.author == 'me' }}" data-id="{{ m.id }}" data-author="{{ m.author }}">
-        {% if m.author != 'me' %}
-        <span class="avatar avatar--ai" aria-hidden="true">
-          <svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg>
-        </span>
+      <div class="bubble-row {{ 'me' if m.mine }}" data-id="{{ m.id }}" data-author="{{ m.author }}" data-mine="{{ '1' if m.mine else '0' }}">
+        {% if not m.mine %}
+          {% if active.type == 'ai' %}
+          <span class="avatar avatar--ai" aria-hidden="true"><svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg></span>
+          {% else %}
+          <span class="avatar" aria-hidden="true">{{ m.author[:2] | lower }}</span>
+          {% endif %}
         {% endif %}
+        {% if m.kind in ('file', 'image') %}
+        <button class="bubble bubble--file" data-file-id="{{ m.id }}" data-file-name="{{ m.body }}" data-file-kind="{{ m.kind }}" data-file-meta='{{ m.meta | tojson }}'>
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg>
+          <span>{{ m.body }}</span>
+          <span class="fsize">{{ m.meta.size or 'open' }}</span>
+        </button>
+        {% else %}
         <div class="bubble">{{ m.body }}</div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -85,9 +119,6 @@
         <button class="icon-btn" type="button" id="attach-btn" aria-label="Attach file">
           <svg class="icon"><use href="#i-attach"/></svg>
         </button>
-        <button class="icon-btn" type="button" aria-label="Voice message (coming soon)" disabled style="opacity:0.4">
-          <svg class="icon"><use href="#i-mic"/></svg>
-        </button>
         <button class="icon-btn" type="submit" aria-label="Send message">
           <svg class="icon"><use href="#i-send"/></svg>
         </button>
@@ -95,12 +126,21 @@
     </div>
   </div>
 
+  {% elif active and not active.allowed %}
+  <div class="atmosphere atm-dark-ridge" aria-hidden="true"></div>
+  <div class="chat-welcome">
+    <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+    <h2>This space is private</h2>
+    <p>Ask the owner to add you by username.</p>
+    <a class="btn" href="{{ url_for('spaces_view') }}">Back to spaces</a>
+  </div>
   {% else %}
   <div class="atmosphere atm-frozen-peaks" aria-hidden="true"></div>
   <div class="chat-welcome">
+    <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
     <h2>Welcome to Phantom</h2>
-    <p>Select a conversation to start messaging.</p>
-    <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
+    <p>Choose a conversation, talk to Phantom AI, or start one with someone.</p>
+    <a class="btn btn--solid" href="{{ url_for('messages', conv_id='ai') }}">Talk to Phantom AI</a>
   </div>
   {% endif %}
 </div>

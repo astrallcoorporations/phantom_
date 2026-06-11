@@ -1,8 +1,9 @@
 """
 phantom_ — private conversations. nothing else.
 
-Flask server. Secrets in .env, Gemini for the assistant, Supabase for
-profiles / contacts / message mirroring. No trackers, no noise.
+Flask server backed by Supabase: real profiles (incl. guests), spaces with
+membership / visibility / theme, and persisted messages you can read back,
+delete, and search. Gemini powers the Phantom AI assistant.
 """
 
 from __future__ import annotations
@@ -16,22 +17,27 @@ from urllib.parse import urlencode
 from dotenv import load_dotenv
 from flask import (Flask, jsonify, redirect, render_template, request,
                    session, url_for)
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 load_dotenv()
 
 GEMINI_API_KEY = (os.getenv("gemini_api_key") or "").strip()
-SUPABASE_URL = (os.getenv("supabase_url") or "").strip()
-SUPABASE_KEY = (os.getenv("supabase_key") or "").strip()
+SUPABASE_URL = (os.getenv("supabase_url") or os.getenv("SUPABASE_URL") or "").strip()
+SUPABASE_KEY = (os.getenv("supabase_key") or os.getenv("SUPABASE_KEY") or "").strip()
 GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
 GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
+PUBLIC_URL = (os.getenv("PUBLIC_URL") or "").strip().rstrip("/")
 
 OWNER_EMAIL = "pencil.insurance.buisness@gmail.com"
 ADMIN_HANDLE = "totoandhenry"
-ADMIN_FIRST_PASSWORD = (os.getenv("admin_first_password") or "phantom-admin").strip()
+ADMIN_FIRST_PASSWORD = "phantom-admin"
 
 app = Flask(__name__)
 app.secret_key = (os.getenv("flask_secret_key") or "").strip() or "phantom-dev-key"
+# Behind Vercel's proxy — trust the forwarded host/proto so OAuth redirects
+# and url_for(_external=True) build https://<your-domain> correctly.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # ---------------------------------------------------------------------------
 # Supabase
@@ -40,7 +46,7 @@ app.secret_key = (os.getenv("flask_secret_key") or "").strip() or "phantom-dev-k
 _supabase = None
 
 
-def supabase():
+def sb():
     global _supabase
     if _supabase is None and SUPABASE_URL and SUPABASE_KEY:
         from supabase import create_client
@@ -49,58 +55,67 @@ def supabase():
 
 
 def sb_insert(table, row):
-    """Fire-and-forget cloud mirror; never blocks or breaks the app."""
     try:
-        client = supabase()
-        if client:
-            client.table(table).insert(row).execute()
+        c = sb()
+        if c:
+            c.table(table).insert(row).execute()
     except Exception:
         pass
 
 
-def sb_find_profile(identity):
-    """Look a profile up by handle or email. Returns dict or None."""
-    client = supabase()
-    if not client:
+def sb_rows(query_fn, default=None):
+    """Run a read, returning .data or a default on any failure."""
+    try:
+        c = sb()
+        if not c:
+            return default if default is not None else []
+        return query_fn(c).execute().data or (default if default is not None else [])
+    except Exception:
+        return default if default is not None else []
+
+
+def find_profile(identity):
+    c = sb()
+    if not c:
         return None
-    ident = identity.strip().lstrip("@").lower()
+    ident = (identity or "").strip().lstrip("@").lower()
+    if not ident:
+        return None
     for col in ("handle", "email"):
         try:
-            resp = client.table("profiles").select("*").eq(col, ident).limit(1).execute()
-            if resp.data:
-                return resp.data[0]
+            r = c.table("profiles").select("*").eq(col, ident).limit(1).execute()
+            if r.data:
+                return r.data[0]
         except Exception:
             continue
     return None
 
 
 # ---------------------------------------------------------------------------
-# Gemini — the Phantom AI assistant
+# Gemini — Phantom AI
 # ---------------------------------------------------------------------------
 
 ASSISTANT_SYSTEM = (
     "You are Phantom AI, the built-in assistant of phantom_ — a private, "
     "minimal messaging app. Voice: calm, concise, helpful, a little quiet. "
     "Answer plainly in a few short sentences unless asked for depth. "
-    "Never use emoji. You run locally for this one user; their messages are "
-    "private and never used for anything else. If asked about phantom bugs or "
-    "problems, walk through them step by step; the owner can be reached at "
-    f"{OWNER_EMAIL}."
+    "Never use emoji. If asked about phantom problems, troubleshoot step by "
+    f"step; the owner can be reached at {OWNER_EMAIL}."
 )
 
-_gemini_client = None
+_gemini = None
 
 
 def gemini_client():
-    global _gemini_client
-    if _gemini_client is None and GEMINI_API_KEY:
+    global _gemini
+    if _gemini is None and GEMINI_API_KEY:
         from google import genai
-        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    return _gemini_client
+        _gemini = genai.Client(api_key=GEMINI_API_KEY)
+    return _gemini
 
 
 # ---------------------------------------------------------------------------
-# Atmospheres — HD, web-sourced
+# Atmospheres (HD, web-sourced) and skins
 # ---------------------------------------------------------------------------
 
 ATMOSPHERES = {
@@ -119,47 +134,7 @@ ATMOSPHERES = {
     "halo":         {"label": "Halo",         "src": "img/atm/halo.jpg"},
     "dark-ridge":   {"label": "Dark Ridge",   "src": "img/atm/dark-ridge.jpg"},
 }
-
-SPACES = {
-    "moon-horizon": {"id": "moon-horizon", "name": "Moon Horizon", "atmosphere": "moon-horizon",
-                     "tagline": "The quiet default.", "members": 12},
-    "developers":   {"id": "developers", "name": "Developers", "atmosphere": "orbit",
-                     "tagline": "Build calm software.", "members": 24},
-    "study-group":  {"id": "study-group", "name": "Study Group", "atmosphere": "cloud-sea",
-                     "tagline": "Focus, together.", "members": 8},
-    "design-circle": {"id": "design-circle", "name": "Design Circle", "atmosphere": "glass-desert",
-                      "tagline": "Form follows silence.", "members": 15},
-    "photography":  {"id": "photography", "name": "Photography", "atmosphere": "frozen-peaks",
-                     "tagline": "Light, captured quietly.", "members": 10},
-}
-
-EXPLORE_SPACES = [
-    {"id": "deep-space-devs", "name": "Deep Space Devs", "atmosphere": "deep-space", "members": "1.2K"},
-    {"id": "creative-minds", "name": "Creative Minds", "atmosphere": "nebula", "members": "896"},
-    {"id": "tech-enthusiasts", "name": "Tech Enthusiasts", "atmosphere": "starfield", "members": "923"},
-]
-
-
-def _msg(author, body, minutes_ago=0, kind="text", meta=None):
-    return {
-        "id": uuid.uuid4().hex[:8],
-        "author": author,
-        "body": body,
-        "ts": time.time() - minutes_ago * 60,
-        "kind": kind,
-        "meta": meta or {},
-    }
-
-
-CONVERSATIONS = {
-    "ai": {
-        "id": "ai", "type": "ai", "title": "Phantom AI", "atmosphere": "night",
-        "sub": "your private assistant",
-        "messages": [
-            _msg("ai", "Hello. I'm Phantom AI — ask me anything, it stays between us.", 1),
-        ],
-    },
-}
+SKINS = ["dark", "onyx", "light", "contrast"]
 
 MEDIA = [
     {"src": a["src"], "title": a["label"], "kind": "image",
@@ -171,35 +146,31 @@ LANGUAGES = ["en", "hi", "es", "fr", "de", "ja", "ar"]
 
 TROUBLESHOOT = [
     {"q": "Phantom AI says it isn't connected",
-     "a": "Open .env in the project folder, paste your key into gemini_api_key=\"\" and restart phantom. Free keys: aistudio.google.com/apikey."},
+     "a": "Set GEMINI_API_KEY in your environment (Vercel → Settings → Environment Variables, or .env for local) and redeploy. Free keys: aistudio.google.com/apikey."},
     {"q": "Gemini replies 'busy right now'",
-     "a": "Google's servers are briefly overloaded (503). Phantom already retries two fallback models — wait a few seconds and send again."},
+     "a": "Google's servers are briefly overloaded (503). Phantom retries two fallback models — wait a few seconds and send again."},
     {"q": "My messages disappeared",
-     "a": "Messages live in your browser's localStorage under phantom.db.v1. They vanish if you clear site data or switch browsers. With Supabase keys set, they also mirror to your cloud project."},
-    {"q": "Theme or language didn't stick",
-     "a": "Preferences save per browser. If localStorage is blocked (private windows sometimes do this), phantom can't remember between visits."},
+     "a": "Signed-in and guest messages persist in Supabase and reload anywhere. Conversations marked 'on this device only' live in your browser's localStorage."},
     {"q": "Can't sign in with Google",
-     "a": "Google sign-in needs valid GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env, with http://127.0.0.1:5000/auth/google/callback registered as a redirect URI in Google Cloud Console."},
+     "a": "Google sign-in needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET set, and your exact callback URL (https://your-domain/auth/google/callback) registered as an Authorized redirect URI in Google Cloud Console."},
     {"q": "Adding a person says 'no one found'",
-     "a": "You can only add people who have signed up — search by their exact username. Ask them to create an account first."},
+     "a": "You can only add people who have a phantom account. Type their full username and press Enter to search."},
+    {"q": "A private space isn't visible to someone",
+     "a": "Private spaces only appear to members. Open the space, use Add member to invite them by username."},
 ]
 
 
 # ---------------------------------------------------------------------------
-# Auth helpers
+# Session / users
 # ---------------------------------------------------------------------------
 
 def current_user():
     return session.get("user")
 
 
-@app.before_request
-def guard_app():
-    if app.config.get("FREEZE"):  # static export renders everything as guest
-        return None
-    if request.path.startswith("/app") and not current_user():
-        return redirect(url_for("auth"))
-    return None
+def user_handle(user=None):
+    user = user or current_user() or {}
+    return (user.get("handle") or "").lstrip("@").lower()
 
 
 def login_as(profile):
@@ -208,8 +179,120 @@ def login_as(profile):
         "name": profile.get("display_name") or profile["handle"],
         "email": profile.get("email") or "",
         "admin": bool(profile.get("is_admin")),
-        "guest": False,
+        "guest": bool(profile.get("is_guest")),
     }
+
+
+@app.before_request
+def guard_app():
+    if app.config.get("FREEZE"):
+        return None
+    if request.path.startswith("/app") and not current_user():
+        return redirect(url_for("auth"))
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Spaces
+# ---------------------------------------------------------------------------
+
+def space_member_count(space_id):
+    rows = sb_rows(lambda c: c.table("space_members").select("handle").eq("space_id", space_id))
+    return len(rows)
+
+
+def is_member(space_id, handle):
+    rows = sb_rows(lambda c: c.table("space_members").select("handle")
+                   .eq("space_id", space_id).eq("handle", handle).limit(1))
+    return bool(rows)
+
+
+def get_space(space_id):
+    rows = sb_rows(lambda c: c.table("spaces").select("*").eq("id", space_id).limit(1))
+    return rows[0] if rows else None
+
+
+def user_spaces(handle):
+    """Spaces the user belongs to, newest first."""
+    mem = sb_rows(lambda c: c.table("space_members").select("space_id, role").eq("handle", handle))
+    if not mem:
+        return []
+    ids = [m["space_id"] for m in mem]
+    roles = {m["space_id"]: m["role"] for m in mem}
+    rows = sb_rows(lambda c: c.table("spaces").select("*").in_("id", ids))
+    for r in rows:
+        r["role"] = roles.get(r["id"], "member")
+        r["members"] = space_member_count(r["id"])
+    rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    return rows
+
+
+def public_spaces(exclude_handle=None, limit=12):
+    rows = sb_rows(lambda c: c.table("spaces").select("*").eq("visibility", "public")
+                   .order("created_at", desc=True).limit(limit))
+    out = []
+    for r in rows:
+        if exclude_handle and is_member(r["id"], exclude_handle):
+            continue
+        r["members"] = space_member_count(r["id"])
+        out.append(r)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Conversations & messages
+# ---------------------------------------------------------------------------
+
+def dm_storage_id(a, b):
+    return "dm:" + "__".join(sorted([a, b]))
+
+
+def resolve_conversation(conv_id, user):
+    """Map a URL conv_id to a storage id + metadata + access decision."""
+    handle = user_handle(user)
+    if not conv_id:
+        return None
+    if conv_id == "ai":
+        return {"sid": f"ai:{handle}", "type": "ai", "title": "Phantom AI",
+                "sub": "your private assistant", "atmosphere": "night",
+                "skin": None, "allowed": True, "deletable": True}
+    if conv_id.startswith("dm-"):
+        other = conv_id[3:].lstrip("@").lower()
+        prof = find_profile(other)
+        return {"sid": dm_storage_id(handle, other), "type": "dm",
+                "title": (prof or {}).get("display_name") or other,
+                "sub": "@" + other, "atmosphere": "halo", "skin": None,
+                "peer": other, "allowed": bool(prof), "deletable": True}
+    if conv_id.startswith("space-"):
+        sid = conv_id[6:]
+        sp = get_space(sid)
+        if not sp:
+            return None
+        allowed = sp.get("visibility") == "public" or is_member(sid, handle)
+        return {"sid": f"space:{sid}", "type": "space", "title": sp["name"],
+                "sub": f"{space_member_count(sid)} members",
+                "atmosphere": sp.get("atmosphere") or "moon-horizon",
+                "skin": sp.get("skin") or "dark", "space": sp,
+                "allowed": allowed, "deletable": sp.get("owner") == handle}
+    if conv_id.startswith("local-"):
+        return {"sid": conv_id, "type": "local",
+                "title": request.args.get("t", "New conversation"),
+                "sub": "on this device only", "atmosphere": "dark-ridge",
+                "skin": None, "allowed": True, "local": True, "deletable": True}
+    return None
+
+
+def load_messages(sid, me):
+    rows = sb_rows(lambda c: c.table("messages").select("*")
+                   .eq("conversation_id", sid).order("created_at", desc=False).limit(500))
+    out = []
+    for r in rows:
+        out.append({
+            "id": r["id"], "author": r["author"], "body": r["body"],
+            "kind": r.get("kind") or "text", "meta": r.get("meta") or {},
+            "mine": (r["author"] == me) or (r["author"] == "me"),
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -218,30 +301,30 @@ def login_as(profile):
 
 def greeting():
     h = datetime.now().hour
-    if h < 5:
-        return "Up late"
-    if h < 12:
-        return "Good morning"
-    if h < 18:
-        return "Good afternoon"
-    return "Good evening"
+    return ("Up late" if h < 5 else "Good morning" if h < 12
+            else "Good afternoon" if h < 18 else "Good evening")
 
 
 def base_context(view):
-    user = current_user() or {"handle": "@guest", "name": "Guest", "email": "", "admin": False, "guest": True}
+    user = current_user() or {"handle": "@guest", "name": "Guest", "email": "",
+                              "admin": False, "guest": True}
+    spaces = user_spaces(user_handle(user)) if current_user() else []
     return {
         "view": view,
         "atmospheres": ATMOSPHERES,
-        "spaces": SPACES,
-        "explore_spaces": EXPLORE_SPACES,
-        "conversations": list(CONVERSATIONS.values()),
+        "skins": SKINS,
+        "spaces": spaces,
+        "conversations": [{"id": "ai", "type": "ai", "title": "Phantom AI",
+                           "sub": "your private assistant", "atmosphere": "night"}],
         "ghost": session.get("ghost", False),
         "lang": session.get("lang", "en"),
         "ai_ready": bool(GEMINI_API_KEY),
         "sb_ready": bool(SUPABASE_URL and SUPABASE_KEY),
+        "google_ready": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
         "owner_email": OWNER_EMAIL,
         "troubleshoot": TROUBLESHOOT,
         "user": user,
+        "my_handle": user_handle(user),
     }
 
 
@@ -263,7 +346,11 @@ def auth():
 
 @app.route("/auth/guest")
 def auth_guest():
-    session["user"] = {"handle": "@guest", "name": "Guest", "email": "", "admin": False, "guest": True}
+    handle = "guest-" + uuid.uuid4().hex[:6]
+    profile = {"handle": handle, "display_name": "Guest " + handle[-4:],
+               "is_guest": True, "theme": "moon-horizon"}
+    sb_insert("profiles", profile)
+    login_as(profile)
     return redirect(url_for("onboarding"))
 
 
@@ -283,6 +370,7 @@ def onboarding():
 def home():
     ctx = base_context("home")
     ctx["greeting"] = greeting()
+    ctx["explore"] = public_spaces(ctx["my_handle"], limit=4)
     return render_template("home.html", **ctx)
 
 
@@ -290,24 +378,26 @@ def home():
 @app.route("/app/messages/<conv_id>")
 def messages(conv_id=None):
     ctx = base_context("messages")
-    conv = CONVERSATIONS.get(conv_id) if conv_id else None
-    if conv is None and conv_id:
-        if conv_id.startswith("local-"):
-            conv = {"id": conv_id, "type": "local", "atmosphere": "dark-ridge",
-                    "title": request.args.get("t", "New conversation"),
-                    "sub": "on this device only", "messages": []}
-        elif conv_id.startswith("dm-"):
-            handle = conv_id[3:]
-            conv = {"id": conv_id, "type": "dm", "atmosphere": "halo",
-                    "title": request.args.get("t", handle),
-                    "sub": "@" + handle, "messages": []}
+    conv = resolve_conversation(conv_id, ctx["user"]) if conv_id else None
+    if conv:
+        conv["id"] = conv_id
+    if conv and conv.get("allowed") and not conv.get("local"):
+        msgs = load_messages(conv["sid"], ctx["my_handle"])
+        if conv["type"] == "ai" and not msgs:
+            msgs = [{"id": "seed", "author": "ai", "mine": False, "kind": "text",
+                     "meta": {}, "body": "Hello. I'm Phantom AI — ask me anything, it stays between us."}]
+        conv["messages"] = msgs
+    elif conv:
+        conv["messages"] = []
     ctx["active"] = conv
     return render_template("messages.html", **ctx)
 
 
 @app.route("/app/spaces")
 def spaces_view():
-    return render_template("spaces.html", **base_context("spaces"))
+    ctx = base_context("spaces")
+    ctx["explore"] = public_spaces(ctx["my_handle"])
+    return render_template("spaces.html", **ctx)
 
 
 @app.route("/app/moments")
@@ -319,17 +409,12 @@ def moments_view():
 def people_view():
     ctx = base_context("people")
     contacts = []
-    client = supabase()
-    me = ctx["user"]["handle"].lstrip("@")
-    if client and not ctx["user"]["guest"]:
-        try:
-            rows = client.table("contacts").select("contact").eq("owner", me).execute().data or []
-            handles = [r["contact"] for r in rows]
-            if handles:
-                profs = client.table("profiles").select("handle, display_name, is_admin").in_("handle", handles).execute().data or []
-                contacts = profs
-        except Exception:
-            pass
+    me = ctx["my_handle"]
+    rows = sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", me))
+    handles = [r["contact"] for r in rows]
+    if handles:
+        contacts = sb_rows(lambda c: c.table("profiles")
+                           .select("handle, display_name, is_admin, is_guest").in_("handle", handles))
     ctx["contacts"] = contacts
     return render_template("people.html", **ctx)
 
@@ -352,7 +437,7 @@ def settings_view():
 
 
 # ---------------------------------------------------------------------------
-# Auth APIs — email/password + Google OAuth
+# Auth APIs
 # ---------------------------------------------------------------------------
 
 @app.post("/api/signup")
@@ -362,23 +447,18 @@ def api_signup():
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
     if not username or not email or len(password) < 6:
-        return jsonify({"error": "Username, email and a password of 6+ characters are required."}), 400
-    client = supabase()
-    if not client:
-        return jsonify({"error": "Cloud profiles need supabase keys in .env."}), 503
-    if sb_find_profile(username):
+        return jsonify({"error": "Username, email and a 6+ character password are required."}), 400
+    if not sb():
+        return jsonify({"error": "Cloud profiles need Supabase keys configured."}), 503
+    if find_profile(username):
         return jsonify({"error": "That username is taken."}), 409
-    if sb_find_profile(email):
+    if find_profile(email):
         return jsonify({"error": "That email already has an account."}), 409
-    profile = {
-        "handle": username,
-        "display_name": data.get("name") or username,
-        "email": email,
-        "password_hash": generate_password_hash(password),
-        "is_admin": username == ADMIN_HANDLE,
-    }
+    profile = {"handle": username, "display_name": data.get("name") or username,
+               "email": email, "password_hash": generate_password_hash(password),
+               "is_admin": username == ADMIN_HANDLE}
     try:
-        client.table("profiles").insert(profile).execute()
+        sb().table("profiles").insert(profile).execute()
     except Exception as exc:
         return jsonify({"error": f"Could not create the account: {exc}"}), 500
     login_as(profile)
@@ -392,24 +472,20 @@ def api_login():
     password = data.get("password") or ""
     if not identity or not password:
         return jsonify({"error": "Enter your username or email, and your password."}), 400
-    profile = sb_find_profile(identity)
+    profile = find_profile(identity)
     if not profile:
         return jsonify({"error": "No account found for that username or email."}), 404
-
     stored = profile.get("password_hash")
     if not stored and profile["handle"] == ADMIN_HANDLE:
-        # first claim of the admin account
         if password != ADMIN_FIRST_PASSWORD:
             return jsonify({"error": "Wrong password."}), 401
         try:
-            supabase().table("profiles").update(
-                {"password_hash": generate_password_hash(password)}
-            ).eq("handle", ADMIN_HANDLE).execute()
+            sb().table("profiles").update({"password_hash": generate_password_hash(password)}) \
+                .eq("handle", ADMIN_HANDLE).execute()
         except Exception:
             pass
     elif not stored or not check_password_hash(stored, password):
         return jsonify({"error": "Wrong password."}), 401
-
     login_as(profile)
     return jsonify({"ok": True, "handle": "@" + profile["handle"], "admin": bool(profile.get("is_admin"))})
 
@@ -420,20 +496,18 @@ GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 
 def google_redirect_uri():
+    if PUBLIC_URL:
+        return PUBLIC_URL + "/auth/google/callback"
     return url_for("google_callback", _external=True)
 
 
 @app.route("/auth/google")
 def google_auth():
     if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET):
-        return redirect(url_for("auth", error="Google sign-in needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env."))
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": google_redirect_uri(),
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account",
-    }
+        return redirect(url_for("auth", error="Google sign-in needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."))
+    params = {"client_id": GOOGLE_CLIENT_ID, "redirect_uri": google_redirect_uri(),
+              "response_type": "code", "scope": "openid email profile",
+              "prompt": "select_account"}
     return redirect(GOOGLE_AUTH_URL + "?" + urlencode(params))
 
 
@@ -445,42 +519,33 @@ def google_callback():
         return redirect(url_for("auth", error="Google sign-in was cancelled."))
     try:
         token = rq.post(GOOGLE_TOKEN_URL, data={
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
+            "code": code, "client_id": GOOGLE_CLIENT_ID,
             "client_secret": GOOGLE_CLIENT_SECRET,
             "redirect_uri": google_redirect_uri(),
-            "grant_type": "authorization_code",
-        }, timeout=15).json()
-        info = rq.get(GOOGLE_USERINFO_URL, headers={
-            "Authorization": "Bearer " + token["access_token"],
-        }, timeout=15).json()
+            "grant_type": "authorization_code"}, timeout=15).json()
+        if "access_token" not in token:
+            return redirect(url_for("auth", error="Google rejected the sign-in (check client secret + redirect URI)."))
+        info = rq.get(GOOGLE_USERINFO_URL,
+                      headers={"Authorization": "Bearer " + token["access_token"]}, timeout=15).json()
     except Exception:
-        return redirect(url_for("auth", error="Google sign-in failed — check the credentials in .env."))
-
+        return redirect(url_for("auth", error="Google sign-in failed — check credentials."))
     email = (info.get("email") or "").lower()
     if not email:
-        return redirect(url_for("auth", error="Google did not return an email address."))
-    profile = sb_find_profile(email)
+        return redirect(url_for("auth", error="Google did not return an email."))
+    profile = find_profile(email)
     if not profile:
-        handle = email.split("@")[0].replace(".", "")[:24]
-        if sb_find_profile(handle):
-            handle = handle + uuid.uuid4().hex[:4]
-        profile = {
-            "handle": handle,
-            "display_name": info.get("name") or handle,
-            "email": email,
-            "is_admin": handle == ADMIN_HANDLE,
-        }
-        try:
-            supabase().table("profiles").insert(profile).execute()
-        except Exception:
-            pass
+        handle = email.split("@")[0].replace(".", "")[:24] or ("g" + uuid.uuid4().hex[:8])
+        if find_profile(handle):
+            handle += uuid.uuid4().hex[:4]
+        profile = {"handle": handle, "display_name": info.get("name") or handle,
+                   "email": email, "is_admin": handle == ADMIN_HANDLE}
+        sb_insert("profiles", profile)
     login_as(profile)
-    return redirect(url_for("onboarding"))
+    return redirect(url_for("home"))
 
 
 # ---------------------------------------------------------------------------
-# People APIs — find by username, add contacts
+# People APIs
 # ---------------------------------------------------------------------------
 
 @app.get("/api/users/find")
@@ -488,41 +553,207 @@ def api_users_find():
     q = (request.args.get("q") or "").strip().lstrip("@").lower()
     if len(q) < 2:
         return jsonify({"results": []})
-    client = supabase()
-    if not client:
-        return jsonify({"results": [], "error": "cloud not configured"})
-    me = (current_user() or {}).get("handle", "").lstrip("@")
-    try:
-        resp = client.table("profiles").select("handle, display_name, is_admin") \
-            .ilike("handle", f"%{q}%").limit(8).execute()
-        results = [r for r in (resp.data or []) if r["handle"] != me]
-        return jsonify({"results": results})
-    except Exception as exc:
-        return jsonify({"results": [], "error": str(exc)[:120]})
+    me = user_handle()
+    rows = sb_rows(lambda c: c.table("profiles").select("handle, display_name, is_admin, is_guest")
+                   .ilike("handle", f"%{q}%").limit(10))
+    return jsonify({"results": [r for r in rows if r["handle"] != me]})
 
 
 @app.post("/api/contacts")
 def api_contacts_add():
     user = current_user()
-    if not user or user.get("guest"):
+    if not user:
         return jsonify({"error": "Sign in to add people."}), 401
     contact = ((request.json or {}).get("contact") or "").strip().lstrip("@").lower()
     if not contact:
         return jsonify({"error": "No username given."}), 400
-    if not sb_find_profile(contact):
+    if not find_profile(contact):
         return jsonify({"error": "No one found with that username."}), 404
-    try:
-        supabase().table("contacts").insert({
-            "owner": user["handle"].lstrip("@"), "contact": contact,
-        }).execute()
-    except Exception:
-        pass  # duplicate adds are fine
+    sb_insert("contacts", {"owner": user_handle(user), "contact": contact})
     return jsonify({"ok": True, "contact": "@" + contact})
 
 
+@app.delete("/api/contacts/<handle>")
+def api_contacts_remove(handle):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    try:
+        sb().table("contacts").delete().eq("owner", user_handle(user)) \
+            .eq("contact", handle.lstrip("@").lower()).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.post("/api/dm")
+def api_dm():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    other = ((request.json or {}).get("handle") or "").strip().lstrip("@").lower()
+    if not find_profile(other):
+        return jsonify({"error": "No one found with that username."}), 404
+    return jsonify({"ok": True, "conv_id": "dm-" + other})
+
+
 # ---------------------------------------------------------------------------
-# Chat APIs
+# Spaces APIs
 # ---------------------------------------------------------------------------
+
+@app.post("/api/spaces")
+def api_space_create():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Sign in to create a space."}), 401
+    data = request.json or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Give your space a name."}), 400
+    atmosphere = data.get("atmosphere") if data.get("atmosphere") in ATMOSPHERES else "moon-horizon"
+    skin = data.get("skin") if data.get("skin") in SKINS else "dark"
+    visibility = "private" if data.get("visibility") == "private" else "public"
+    me = user_handle(user)
+    sid = "sp-" + uuid.uuid4().hex[:10]
+    space = {"id": sid, "name": name[:60], "atmosphere": atmosphere, "skin": skin,
+             "visibility": visibility, "tagline": (data.get("tagline") or "")[:80],
+             "owner": me, "created_by": me}
+    try:
+        sb().table("spaces").insert(space).execute()
+        sb().table("space_members").insert({"space_id": sid, "handle": me, "role": "owner"}).execute()
+    except Exception as exc:
+        return jsonify({"error": f"Could not create the space: {exc}"}), 500
+    # invite members by username (only real accounts)
+    added = []
+    for raw in (data.get("members") or [])[:30]:
+        h = (raw or "").strip().lstrip("@").lower()
+        if h and h != me and find_profile(h):
+            sb_insert("space_members", {"space_id": sid, "handle": h, "role": "member"})
+            added.append(h)
+    return jsonify({"ok": True, "id": sid, "conv_id": "space-" + sid, "added": added})
+
+
+@app.post("/api/spaces/<sid>/join")
+def api_space_join(sid):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    sp = get_space(sid)
+    if not sp:
+        return jsonify({"error": "no such space"}), 404
+    if sp.get("visibility") != "public" and not is_member(sid, user_handle(user)):
+        return jsonify({"error": "This space is private."}), 403
+    sb_insert("space_members", {"space_id": sid, "handle": user_handle(user), "role": "member"})
+    return jsonify({"ok": True, "conv_id": "space-" + sid})
+
+
+@app.post("/api/spaces/<sid>/members")
+def api_space_add_member(sid):
+    user = current_user()
+    sp = get_space(sid)
+    if not sp:
+        return jsonify({"error": "no such space"}), 404
+    if not user or sp.get("owner") != user_handle(user):
+        return jsonify({"error": "Only the space owner can add members."}), 403
+    h = ((request.json or {}).get("username") or "").strip().lstrip("@").lower()
+    if not find_profile(h):
+        return jsonify({"error": "No one found with that username."}), 404
+    sb_insert("space_members", {"space_id": sid, "handle": h, "role": "member"})
+    return jsonify({"ok": True, "added": "@" + h})
+
+
+@app.delete("/api/spaces/<sid>")
+def api_space_delete(sid):
+    user = current_user()
+    sp = get_space(sid)
+    if not sp:
+        return jsonify({"ok": True})
+    me = user_handle(user)
+    if not user or (sp.get("owner") != me and not (user or {}).get("admin")):
+        return jsonify({"error": "Only the owner can delete this space."}), 403
+    try:
+        sb().table("messages").delete().eq("conversation_id", f"space:{sid}").execute()
+        sb().table("spaces").delete().eq("id", sid).execute()  # cascades members
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:160]}), 500
+    return jsonify({"ok": True})
+
+
+@app.post("/api/spaces/<sid>/leave")
+def api_space_leave(sid):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    try:
+        sb().table("space_members").delete().eq("space_id", sid) \
+            .eq("handle", user_handle(user)).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Messages APIs
+# ---------------------------------------------------------------------------
+
+@app.get("/api/conversations/<conv_id>/messages")
+def api_messages_get(conv_id):
+    conv = resolve_conversation(conv_id, current_user())
+    if not conv or not conv.get("allowed") or conv.get("local"):
+        return jsonify({"messages": []})
+    return jsonify({"messages": load_messages(conv["sid"], user_handle())})
+
+
+@app.post("/api/conversations/<conv_id>/messages")
+def send_message(conv_id):
+    data = request.json or {}
+    body = (data.get("body") or "").strip()
+    kind = data.get("kind") if data.get("kind") in ("text", "file", "image", "voice") else "text"
+    meta = data.get("meta") or {}
+    if not body:
+        return jsonify({"error": "empty message"}), 400
+    conv = resolve_conversation(conv_id, current_user())
+    if not conv or not conv.get("allowed"):
+        return jsonify({"error": "no access to this conversation"}), 403
+    if conv.get("local"):
+        return jsonify({"id": "local", "ok": True})  # stays client-side
+    me = user_handle() or "me"
+    row = {"conversation_id": conv["sid"], "author": me, "body": body,
+           "kind": kind, "meta": meta}
+    try:
+        res = sb().table("messages").insert(row).execute()
+        new_id = (res.data or [{}])[0].get("id")
+    except Exception:
+        new_id = uuid.uuid4().hex
+    return jsonify({"id": new_id, "author": me, "body": body, "kind": kind, "meta": meta}), 201
+
+
+@app.delete("/api/messages/<mid>")
+def api_message_delete(mid):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    rows = sb_rows(lambda c: c.table("messages").select("author").eq("id", mid).limit(1))
+    if rows and rows[0]["author"] not in (user_handle(user), "me") and not user.get("admin"):
+        return jsonify({"error": "You can only delete your own messages."}), 403
+    try:
+        sb().table("messages").delete().eq("id", mid).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/conversations/<conv_id>")
+def api_conversation_clear(conv_id):
+    conv = resolve_conversation(conv_id, current_user())
+    if not conv:
+        return jsonify({"ok": True})
+    try:
+        sb().table("messages").delete().eq("conversation_id", conv["sid"]).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
 
 @app.post("/api/assistant")
 def assistant():
@@ -531,13 +762,13 @@ def assistant():
     history = data.get("history") or []
     if not message:
         return jsonify({"error": "empty message"}), 400
+    me = user_handle() or "me"
+    sid = f"ai:{me}"
 
     if not GEMINI_API_KEY:
         return jsonify({"reply": (
-            "I'm not connected yet. Open the .env file in the project root and put "
-            "your Google AI Studio key into gemini_api_key=\"\" — then restart phantom. "
-            "Keys are free at aistudio.google.com/apikey."
-        ), "offline": True})
+            "I'm not connected yet. Set GEMINI_API_KEY in your environment and redeploy. "
+            "Keys are free at aistudio.google.com/apikey."), "offline": True})
 
     contents = []
     for turn in history[-20:]:
@@ -551,34 +782,17 @@ def assistant():
     for model in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"):
         try:
             resp = gemini_client().models.generate_content(
-                model=model,
-                contents=contents,
-                config={"system_instruction": ASSISTANT_SYSTEM, "temperature": 0.6},
-            )
+                model=model, contents=contents,
+                config={"system_instruction": ASSISTANT_SYSTEM, "temperature": 0.6})
             reply = (resp.text or "").strip() or "…I have nothing to add."
-            sb_insert("messages", {"conversation_id": "ai", "author": "me", "body": message})
-            sb_insert("messages", {"conversation_id": "ai", "author": "ai", "body": reply})
+            sb_insert("messages", {"conversation_id": sid, "author": me, "body": message})
+            sb_insert("messages", {"conversation_id": sid, "author": "ai", "body": reply})
             return jsonify({"reply": reply, "model": model})
         except Exception as exc:
             last_error = exc
             app.logger.warning("gemini %s failed: %s", model, exc)
-    return jsonify({"reply": (
-        "Gemini is busy right now — give it a moment and ask again."
-    ), "offline": True, "error": str(last_error)[:200]})
-
-
-@app.post("/api/conversations/<conv_id>/messages")
-def send_message(conv_id):
-    body = (request.json or {}).get("body", "").strip()
-    if not body:
-        return jsonify({"error": "empty message"}), 400
-    msg = _msg("me", body)
-    conv = CONVERSATIONS.get(conv_id)
-    if conv:
-        conv["messages"].append(msg)
-    author = (current_user() or {}).get("handle", "me")
-    sb_insert("messages", {"conversation_id": conv_id, "author": author, "body": body})
-    return jsonify(msg), 201
+    return jsonify({"reply": "Gemini is busy right now — give it a moment and ask again.",
+                    "offline": True, "error": str(last_error)[:200]})
 
 
 @app.post("/api/ghost")

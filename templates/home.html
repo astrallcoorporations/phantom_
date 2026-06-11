@@ -35,20 +35,25 @@
           </div>
         </section>
 
-        <section class="panel" aria-label="Active spaces" style="flex:1">
-          <div class="panel-head"><h2 data-i18n="active_spaces">Active spaces</h2>
-            <a class="btn btn--quiet btn--sm spacer" href="{{ url_for('spaces_view') }}">All →</a>
+        <section class="panel" aria-label="Your spaces" style="flex:1">
+          <div class="panel-head"><h2 data-i18n="active_spaces">Your spaces</h2>
+            <button class="btn btn--quiet btn--sm spacer" data-create-space>+ New</button>
           </div>
           <div style="padding:8px">
-            {% for s in (spaces.values() | list)[:4] %}
-            <a class="row-item" href="{{ url_for('spaces_view') }}">
-              <span class="rail-space thumb" style="width:30px;height:30px;border-radius:9px;background:url('{{ url_for('static', filename=atmospheres[s.atmosphere].src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9)" aria-hidden="true"></span>
+            {% for s in spaces[:4] %}
+            <a class="row-item" href="{{ url_for('messages', conv_id='space-' + s.id) }}">
+              <span class="rail-space thumb" style="width:30px;height:30px;border-radius:9px;background:url('{{ url_for('static', filename=atmospheres.get(s.atmosphere, atmospheres['moon-horizon']).src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9)" aria-hidden="true"></span>
               <div style="min-width:0;flex:1">
                 <div class="name">{{ s.name }}</div>
-                <div class="sub">{{ s.tagline }}</div>
+                <div class="sub">{{ s.members }} member{{ '' if s.members == 1 else 's' }}{% if s.tagline %} · {{ s.tagline }}{% endif %}</div>
               </div>
-              <span class="label end">{{ s.members }} <span data-i18n="members">members</span></span>
+              {% if s.visibility == 'private' %}<svg class="icon end" style="width:12px;height:12px;color:var(--p-text-4)"><use href="#i-lock"/></svg>{% endif %}
             </a>
+            {% else %}
+            <button class="row-item" data-create-space style="width:100%;text-align:start">
+              <span class="avatar" aria-hidden="true">+</span>
+              <div style="flex:1"><div class="name">Create a space</div><div class="sub">Pick a world, add people</div></div>
+            </button>
             {% endfor %}
           </div>
         </section>

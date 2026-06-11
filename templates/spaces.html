@@ -9,9 +9,9 @@
       <div class="txt">
         <span class="label">SPACES</span>
         <h1 data-i18n="spaces">Spaces</h1>
-        <p>Places, not channels. Each one carries its own atmosphere.</p>
+        <p>Places, not channels. Build one — choose its world, its theme, and who's in it.</p>
       </div>
-      <button class="btn" data-cmdk-open>
+      <button class="btn btn--solid" data-create-space>
         <svg class="icon" style="width:13px;height:13px"><use href="#i-plus"/></svg>
         Create space
       </button>
@@ -19,36 +19,59 @@
 
     <section aria-label="My spaces">
       <span class="label" style="display:block;margin-bottom:12px">MY SPACES</span>
+      {% if spaces %}
       <div class="grid grid--3">
-        {% for s in spaces.values() %}
-        <a class="space-card" href="{{ url_for('messages') }}" aria-label="Space {{ s.name }}">
+        {% for s in spaces %}
+        <div class="space-card" data-space="{{ s.id }}">
           <span class="atmosphere atm-{{ s.atmosphere }}" aria-hidden="true"></span>
+          <a class="space-open" href="{{ url_for('messages', conv_id='space-' + s.id) }}" aria-label="Open {{ s.name }}"></a>
+          <div class="space-top">
+            {% if s.visibility == 'private' %}<span class="pill"><svg class="icon" style="width:10px;height:10px"><use href="#i-lock"/></svg> Private</span>{% else %}<span class="pill"><svg class="icon" style="width:10px;height:10px"><use href="#i-globe"/></svg> Public</span>{% endif %}
+            {% if s.owner == my_handle %}
+            <button class="icon-btn space-del" data-del-space="{{ s.id }}" aria-label="Delete {{ s.name }}" title="Delete space">
+              <svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg>
+            </button>
+            {% endif %}
+          </div>
           <h3>{{ s.name }}</h3>
-          <span class="members">{{ s.members }} members</span>
-        </a>
+          <span class="members">{{ s.members }} member{{ '' if s.members == 1 else 's' }}{% if s.tagline %} · {{ s.tagline }}{% endif %}</span>
+        </div>
         {% endfor %}
-        <button class="space-card" data-cmdk-open aria-label="Create a new space"
-                style="align-items:center;justify-content:center;display:flex;flex-direction:column;gap:10px;background:var(--p-panel)">
+        <button class="space-card space-create-tile" data-create-space aria-label="Create a new space">
           <svg class="icon" style="width:18px;height:18px;color:var(--p-text-4)"><use href="#i-plus"/></svg>
           <span class="mono" style="color:var(--p-text-3);font-size:11px;letter-spacing:0.1em">Create Space</span>
         </button>
       </div>
+      {% else %}
+      <div class="empty">
+        <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+        <h3>No spaces yet</h3>
+        <p>Spaces are private worlds for your people. Make your first — pick a background, a theme, and invite who you like.</p>
+        <button class="btn btn--solid" data-create-space>Create your first space</button>
+      </div>
+      {% endif %}
     </section>
 
-    <section aria-label="Explore spaces" style="margin-top:32px">
-      <span class="label" style="display:block;margin-bottom:12px">EXPLORE SPACES</span>
-      <div class="panel" style="padding:8px">
-        {% for e in explore_spaces %}
+    <section aria-label="Explore" style="margin-top:32px">
+      <span class="label" style="display:block;margin-bottom:12px">EXPLORE PUBLIC SPACES</span>
+      {% if explore %}
+      <div class="panel" style="padding:8px;max-width:620px">
+        {% for e in explore %}
         <div class="row-item">
-          <span style="width:34px;height:34px;border-radius:10px;background:url('{{ url_for('static', filename=atmospheres[e.atmosphere].src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9);flex:none" aria-hidden="true"></span>
+          <span style="width:34px;height:34px;border-radius:10px;background:url('{{ url_for('static', filename=atmospheres.get(e.atmosphere, atmospheres['moon-horizon']).src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9);flex:none" aria-hidden="true"></span>
           <div style="min-width:0;flex:1">
             <div class="name">{{ e.name }}</div>
-            <div class="sub">{{ e.members }} members</div>
+            <div class="sub">{{ e.members }} member{{ '' if e.members == 1 else 's' }}</div>
           </div>
-          <button class="btn btn--sm end" data-join="{{ e.id }}">Join</button>
+          <button class="btn btn--sm btn--solid end" data-join-space="{{ e.id }}">Join</button>
         </div>
         {% endfor %}
       </div>
+      {% else %}
+      <div class="empty" style="padding:30px">
+        <p style="font-size:12.5px">No public spaces to explore yet. Create one and make it public.</p>
+      </div>
+      {% endif %}
     </section>
   </div>
 </div>
