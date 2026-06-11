@@ -1,0 +1,55 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — spaces{% endblock %}
+
+{% block main %}
+<div class="content panel">
+  <div class="atmosphere atm-deep-space" aria-hidden="true"></div>
+  <div class="content-inner">
+    <header class="page-head">
+      <div class="txt">
+        <span class="label">SPACES</span>
+        <h1 data-i18n="spaces">Spaces</h1>
+        <p>Places, not channels. Each one carries its own atmosphere.</p>
+      </div>
+      <button class="btn" data-cmdk-open>
+        <svg class="icon" style="width:13px;height:13px"><use href="#i-plus"/></svg>
+        Create space
+      </button>
+    </header>
+
+    <section aria-label="My spaces">
+      <span class="label" style="display:block;margin-bottom:12px">MY SPACES</span>
+      <div class="grid grid--3">
+        {% for s in spaces.values() %}
+        <a class="space-card" href="{{ url_for('messages') }}" aria-label="Space {{ s.name }}">
+          <span class="atmosphere atm-{{ s.atmosphere }}" aria-hidden="true"></span>
+          <h3>{{ s.name }}</h3>
+          <span class="members">{{ s.members }} members</span>
+        </a>
+        {% endfor %}
+        <button class="space-card" data-cmdk-open aria-label="Create a new space"
+                style="align-items:center;justify-content:center;display:flex;flex-direction:column;gap:10px;background:var(--p-panel)">
+          <svg class="icon" style="width:18px;height:18px;color:var(--p-text-4)"><use href="#i-plus"/></svg>
+          <span class="mono" style="color:var(--p-text-3);font-size:11px;letter-spacing:0.1em">Create Space</span>
+        </button>
+      </div>
+    </section>
+
+    <section aria-label="Explore spaces" style="margin-top:32px">
+      <span class="label" style="display:block;margin-bottom:12px">EXPLORE SPACES</span>
+      <div class="panel" style="padding:8px">
+        {% for e in explore_spaces %}
+        <div class="row-item">
+          <span style="width:34px;height:34px;border-radius:10px;background:url('{{ url_for('static', filename=atmospheres[e.atmosphere].src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9);flex:none" aria-hidden="true"></span>
+          <div style="min-width:0;flex:1">
+            <div class="name">{{ e.name }}</div>
+            <div class="sub">{{ e.members }} members</div>
+          </div>
+          <button class="btn btn--sm end" data-join="{{ e.id }}">Join</button>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

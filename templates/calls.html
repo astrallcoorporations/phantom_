@@ -1,0 +1,42 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — calls{% endblock %}
+
+{% block main %}
+<aside class="convo-col panel" aria-label="Call history">
+  <div class="panel-head"><h2 data-i18n="calls">Calls</h2></div>
+  <div class="empty" style="padding:40px 20px">
+    <svg class="icon" style="width:20px;height:20px;color:var(--p-text-4)"><use href="#i-calls"/></svg>
+    <h3 style="font-size:14px">No calls yet</h3>
+    <p style="font-size:12px">Your call history will appear here. Nothing is ever recorded.</p>
+  </div>
+</aside>
+
+<div class="content panel">
+  <div class="atmosphere atm-orbit" aria-hidden="true"></div>
+  <div class="call-stage">
+    <span class="label">AUDIO / VIDEO · ENCRYPTED</span>
+    <div class="call-avatar" aria-hidden="true">j_</div>
+    <div>
+      <div style="color:var(--p-text);font-size:15px;font-weight:600">Ready when you are</div>
+      <div class="presence-label" style="margin-top:4px">START A CALL FROM ANY CONVERSATION</div>
+    </div>
+
+    <div class="call-controls" role="group" aria-label="Call controls">
+      <button class="icon-btn" aria-label="Toggle microphone" aria-pressed="false">
+        <svg class="icon" style="width:16px;height:16px"><use href="#i-mic"/></svg>
+      </button>
+      <button class="icon-btn" aria-label="Toggle camera" aria-pressed="false">
+        <svg class="icon" style="width:16px;height:16px"><use href="#i-video"/></svg>
+      </button>
+      <button class="icon-btn" aria-label="Share screen">
+        <svg class="icon" style="width:16px;height:16px"><use href="#i-screen"/></svg>
+      </button>
+      <a class="icon-btn end" href="{{ url_for('messages') }}" aria-label="End call">
+        <svg class="icon" style="width:16px;height:16px;transform:rotate(135deg)"><use href="#i-calls"/></svg>
+      </a>
+    </div>
+
+    <p class="label" style="margin-top:10px">NO RECORDING · NO TRANSCRIPTS · JUST YOU</p>
+  </div>
+</div>
+{% endblock %}

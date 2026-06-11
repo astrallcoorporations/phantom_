@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}phantom_{% endblock %}</title>
+  <script>try{document.documentElement.dataset.skin=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark"}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+</head>
+<body data-view="{{ view }}" data-guest="{{ '1' if user.guest else '0' }}"{% if ghost %} class="ghost-on"{% endif %}>
+  {% include "_icons.html" %}
+  <a class="skip-link" href="#main-content">skip to content</a>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="shell">
+    <nav class="rail panel" aria-label="Primary">
+      <a class="rail-brand" href="{{ url_for('home') }}">
+        <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
+        <span>phantom_</span>
+      </a>
+
+      <button class="rail-search" data-cmdk-open aria-label="Open command center">
+        <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-search"/></svg>
+        <span data-i18n="search">Search</span>
+        <kbd>⌘K</kbd>
+      </button>
+
+      <div class="rail-nav">
+        {% for item in [
+          ('home', url_for('home'), 'i-home'),
+          ('messages', url_for('messages'), 'i-messages'),
+          ('spaces', url_for('spaces_view'), 'i-spaces'),
+          ('moments', url_for('moments_view'), 'i-moments'),
+          ('people', url_for('people_view'), 'i-people'),
+          ('calls', url_for('calls_view'), 'i-calls'),
+          ('media', url_for('media_view'), 'i-media'),
+          ('settings', url_for('settings_view'), 'i-settings'),
+        ] %}
+        <a class="rail-link" href="{{ item[1] }}" {% if view == item[0] %}aria-current="page"{% endif %}>
+          <svg class="icon" aria-hidden="true"><use href="#{{ item[2] }}"/></svg>
+          <span data-i18n="{{ item[0] }}">{{ item[0] | capitalize }}</span>
+        </a>
+        {% endfor %}
+      </div>
+
+      <div class="rail-section" aria-label="Active spaces">
+        <span class="label">ACTIVE SPACES
+          <a class="icon-btn" href="{{ url_for('spaces_view') }}" aria-label="All spaces" style="color:inherit">
+            <svg class="icon" style="width:11px;height:11px"><use href="#i-plus"/></svg>
+          </a>
+        </span>
+        {% for s in spaces.values() %}
+        <a class="rail-space" href="{{ url_for('spaces_view') }}">
+          <span class="thumb" style="background-image:url('{{ url_for('static', filename=atmospheres[s.atmosphere].src) }}')" aria-hidden="true"></span>
+          {{ s.name }}
+        </a>
+        {% endfor %}
+      </div>
+
+      <div class="rail-foot">
+        <button class="ghost-toggle" data-ghost-toggle role="switch"
+                aria-pressed="{{ 'true' if ghost else 'false' }}" aria-checked="{{ 'true' if ghost else 'false' }}"
+                aria-label="Ghost mode">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="lbl" data-i18n="ghost_mode">Ghost mode</span>
+          <span class="state">{{ 'ON' if ghost else 'OFF' }}</span>
+        </button>
+        <div class="rail-me">
+          <span class="avatar" data-profile-avatar aria-hidden="true">{{ user.name[:2] | lower }}</span>
+          <div class="meta">
+            <div class="n" style="display:flex;align-items:center;gap:6px">
+              <span data-profile-name>{{ user.name }}</span>
+              {% if user.admin %}<span class="admin-badge">admin</span>{% endif %}
+            </div>
+            <div class="presence-label" data-profile-handle>{{ user.handle }}</div>
+          </div>
+          <a class="icon-btn" href="{{ url_for('logout') }}" aria-label="Log out" style="margin-inline-start:auto;color:var(--p-danger)">
+            <svg class="icon" style="width:13px;height:13px"><use href="#i-logout"/></svg>
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="main" id="main-content">
+      {% block main %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Command center -->
+  <div class="cmdk-backdrop" id="cmdk" role="dialog" aria-modal="true" aria-label="Command center">
+    <div class="cmdk">
+      <div class="cmdk-input">
+        <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
+        <input type="text" placeholder="Search conversations, spaces, actions…" aria-label="Search everything">
+        <kbd class="mono" style="font-size:9px;color:var(--p-text-4);border:1px solid var(--p-line);border-radius:4px;padding:2px 6px">ESC</kbd>
+      </div>
+      <div class="cmdk-list" role="listbox"></div>
+    </div>
+  </div>
+
+  <script type="application/json" id="cmdk-data">[
+    {"title": "Phantom AI", "hint": "assistant", "href": "/app/messages/ai"},
+    {% for s in spaces.values() %}
+    {"title": {{ s.name | tojson }}, "hint": "space", "href": "/app/spaces"},
+    {% endfor %}
+    {"title": "Toggle ghost mode", "hint": "action", "action": "ghost", "href": "#"},
+    {"title": "New conversation", "hint": "action", "action": "new-convo", "href": "#"},
+    {"title": "Moments timeline", "hint": "go to", "href": "/app/moments"},
+    {"title": "Media library", "hint": "go to", "href": "/app/media"},
+    {"title": "Settings", "hint": "go to", "href": "/app/settings"}
+  ]</script>
+
+  <script type="application/json" id="atm-data">{
+    {% for key, a in atmospheres.items() %}
+    {{ key | tojson }}: {"label": {{ a.label | tojson }}, "src": {{ a.src | tojson }}}{{ "," if not loop.last }}
+    {% endfor %}
+  }</script>
+
+  <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,107 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — messages{% endblock %}
+
+{% block main %}
+<aside class="convo-col panel" aria-label="Conversations">
+  <div class="panel-head">
+    <h2 data-i18n="messages">Messages</h2>
+    <button class="icon-btn spacer" id="new-convo-btn" aria-label="New conversation">
+      <svg class="icon" style="width:13px;height:13px"><use href="#i-plus"/></svg>
+    </button>
+  </div>
+  <div style="padding:10px 10px 0">
+    <div class="tabs" role="tablist" aria-label="Filter conversations">
+      <button role="tab" aria-selected="true" data-convo-tab="all">All</button>
+      <button role="tab" aria-selected="false" data-convo-tab="ai">AI</button>
+      <button role="tab" aria-selected="false" data-convo-tab="local">Local</button>
+    </div>
+  </div>
+  <div class="convo-scroll" id="convo-list">
+    <a class="convo-item {{ 'active' if active and active.id == 'ai' }}" data-kind="ai"
+       href="{{ url_for('messages', conv_id='ai') }}" {% if active and active.id == 'ai' %}aria-current="true"{% endif %}>
+      <span class="avatar avatar--ai" aria-hidden="true">
+        <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
+      </span>
+      <div class="meta">
+        <div class="name">Phantom AI <span class="presence presence--online" role="img" aria-label="online"></span></div>
+        <div class="last">{{ 'your private assistant' if ai_ready else 'needs a gemini key — see .env' }}</div>
+      </div>
+    </a>
+    <!-- local conversations injected by phantom.js -->
+  </div>
+</aside>
+
+<div class="content panel">
+  {% if active %}
+  <div class="atmosphere atm-{{ active.atmosphere }}" aria-hidden="true"></div>
+
+  <div class="chat">
+    <header class="chat-head">
+      {% if active.type == 'ai' %}
+      <span class="avatar avatar--ai" aria-hidden="true">
+        <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
+      </span>
+      {% else %}
+      <span class="avatar" aria-hidden="true">{{ active.title[:2] | lower }}</span>
+      {% endif %}
+      <div>
+        <div class="title" id="chat-title">{{ active.title }}</div>
+        <div class="sub">{{ active.sub }}</div>
+      </div>
+      <div class="actions">
+        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Start audio call">
+          <svg class="icon"><use href="#i-calls"/></svg>
+        </a>
+        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Start video call">
+          <svg class="icon"><use href="#i-video"/></svg>
+        </a>
+        <button class="icon-btn" data-cmdk-open aria-label="Search">
+          <svg class="icon"><use href="#i-search"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="chat-scroll" id="chat-scroll" aria-live="polite">
+      {% for m in active.messages %}
+      <div class="bubble-row {{ 'me' if m.author == 'me' }}" data-id="{{ m.id }}" data-author="{{ m.author }}">
+        {% if m.author != 'me' %}
+        <span class="avatar avatar--ai" aria-hidden="true">
+          <svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg>
+        </span>
+        {% endif %}
+        <div class="bubble">{{ m.body }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="composer">
+      <form class="composer-inner" id="composer-form" data-conv="{{ active.id }}"
+            data-title="{{ active.title }}" data-atmosphere="{{ active.atmosphere }}"
+            {% if active.type == 'ai' %}data-ai="1"{% endif %}
+            {% if active.type == 'local' %}data-local="1"{% endif %}>
+        <input type="text" name="body" placeholder="Message…" data-i18n-placeholder="message_placeholder"
+               autocomplete="off" aria-label="Message {{ active.title }}">
+        <input type="file" id="file-input" hidden aria-hidden="true" tabindex="-1">
+        <button class="icon-btn" type="button" id="attach-btn" aria-label="Attach file">
+          <svg class="icon"><use href="#i-attach"/></svg>
+        </button>
+        <button class="icon-btn" type="button" aria-label="Voice message (coming soon)" disabled style="opacity:0.4">
+          <svg class="icon"><use href="#i-mic"/></svg>
+        </button>
+        <button class="icon-btn" type="submit" aria-label="Send message">
+          <svg class="icon"><use href="#i-send"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="atmosphere atm-frozen-peaks" aria-hidden="true"></div>
+  <div class="chat-welcome">
+    <h2>Welcome to Phantom</h2>
+    <p>Select a conversation to start messaging.</p>
+    <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

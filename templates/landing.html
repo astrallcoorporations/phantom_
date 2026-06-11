@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>phantom_ — private conversations. nothing else.</title>
+  <meta name="description" content="Fast. Private. Lightweight. A messaging space built for focus, designed for humans.">
+  <script>try{document.documentElement.dataset.skin=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark"}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+</head>
+<body class="landing">
+  {% include "_icons.html" %}
+  <a class="skip-link" href="#hero">skip to content</a>
+  <div class="atmosphere atm-moon-horizon" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <nav class="land-nav" aria-label="Primary">
+    <a class="brand" href="/">
+      <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
+      phantom_
+    </a>
+    <div class="links">
+      <a href="#pillars">Features</a>
+      <a href="#manifesto">Privacy</a>
+      <a href="#worlds">Worlds</a>
+      <a class="btn btn--sm" href="{{ url_for('auth') }}">Get Phantom</a>
+    </div>
+  </nav>
+
+  <header class="hero" id="hero">
+    <h1>
+      <span class="line"><span>Private conversations.</span></span>
+      <span class="line"><span>Nothing else.</span></span>
+    </h1>
+    <p class="sub">A messaging space that disappears into the noise so you can speak freely.</p>
+    <p class="tags">Fast · Private · Lightweight</p>
+    <div class="cta">
+      <a class="btn btn--solid" href="{{ url_for('onboarding') }}">Get Phantom</a>
+      <a class="btn" href="{{ url_for('auth') }}">Sign in</a>
+    </div>
+    <p class="foot-line">Built for focus. Designed for humans.</p>
+  </header>
+
+  <section class="video-section" aria-label="Phantom in motion">
+    <span class="label reveal" style="display:block;margin-bottom:18px">PHANTOM IN 18 SECONDS</span>
+    <div class="video-frame reveal">
+      <div class="vf-bar" aria-hidden="true"><span class="dot"></span> phantom_ — official spot</div>
+      <video id="ad-video" autoplay muted loop playsinline
+             poster="{{ url_for('static', filename='img/web/moon.jpg') }}"
+             aria-label="Phantom advertisement: fast, private, lightweight — private conversations, nothing else">
+        <source src="{{ url_for('static', filename='video/phantom-ad.mp4') }}" type="video/mp4">
+      </video>
+      <button class="icon-btn video-mute" id="ad-sound" aria-label="Replay advertisement">
+        <svg class="icon" style="width:14px;height:14px"><use href="#i-moments"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <section class="pillars" id="pillars" aria-label="Foundations">
+    <div class="pillar panel reveal">
+      <span class="label">01 / PRIVATE</span>
+      <svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>
+      <h3>Private by default</h3>
+      <p>End-to-end encrypted spaces. No ads, no trackers, no engagement hooks. Your words belong to you.</p>
+    </div>
+    <div class="pillar panel reveal">
+      <span class="label">02 / SPACES</span>
+      <svg class="icon" aria-hidden="true"><use href="#i-spaces"/></svg>
+      <h3>Spaces, not threads</h3>
+      <p>Distinct digital places with their own atmosphere — not channel trees, not infinite feeds.</p>
+    </div>
+    <div class="pillar panel reveal">
+      <span class="label">03 / GHOST</span>
+      <svg class="icon" aria-hidden="true"><use href="#i-ghost"/></svg>
+      <h3>Disappear on your terms</h3>
+      <p>Ghost mode silences typing indicators, read receipts and presence. Speak without pressure.</p>
+    </div>
+    <div class="pillar panel reveal">
+      <span class="label">04 / AI</span>
+      <svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg>
+      <h3>An assistant, not a spy</h3>
+      <p>Phantom AI runs on your own Gemini key. Conversations stay on your device — always.</p>
+    </div>
+  </section>
+
+  <section class="manifesto" id="manifesto">
+    <h2 class="reveal">Less noise.<br>More signal.</h2>
+    <p class="body reveal">
+      <span class="label" style="display:block;margin-bottom:18px">OUR PHILOSOPHY</span>
+      Phantom is built for conversations that matter. No ads, no trackers,
+      no clutter. Just a space for you and the people you trust —
+      floating quietly in a silent world.
+    </p>
+  </section>
+
+  <section class="poster-section" aria-label="Phantom poster">
+    <div class="poster-frame reveal">
+      <img src="{{ url_for('static', filename='img/web/phantom-poster.jpg') }}"
+           alt="Phantom poster — private conversations, nothing else" loading="lazy">
+    </div>
+    <div class="poster-copy">
+      <span class="label reveal" style="display:block;margin-bottom:16px">THE IDEA</span>
+      <h2 class="reveal">Software that<br>keeps quiet.</h2>
+      <p class="reveal">No feeds. No metrics. No little red dots engineered to pull you back.
+      Phantom is a place your conversations live — not a product that lives off your conversations.</p>
+    </div>
+  </section>
+
+  <section class="world-strip" id="worlds" aria-label="Atmospheres">
+    <span class="label reveal" style="display:block">CHOOSE YOUR WORLD</span>
+    <div class="strip">
+      {% for key, label in [('moon-horizon','Moon Horizon'), ('frozen-peaks','Frozen Peaks'),
+                            ('cloud-sea','Cloud Sea'), ('deep-space','Deep Space'), ('orbit','Orbit')] %}
+      <div class="media-tile reveal" role="img" aria-label="Atmosphere: {{ label }}">
+        <img src="{{ url_for('static', filename='img/web/' + {'moon-horizon':'moon','frozen-peaks':'ridge','cloud-sea':'valley','deep-space':'milkyway','orbit':'orbit'}[key] + '.jpg') }}" alt="" loading="lazy">
+        <span class="cap"><span class="t">{{ label }}</span></span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <footer class="land-foot">
+    <span style="display:flex;align-items:center;gap:8px">
+      <span class="cube" style="width:16px;height:16px" aria-hidden="true"><span class="cube-core" style="width:8px;height:8px;border-radius:2px"></span></span>
+      phantom_ © 2026
+    </span>
+    <div class="links">
+      <a href="#">PRIVACY</a><a href="#">TERMS</a><a href="#">STATUS</a><a href="#">CONTACT</a>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+  <script>
+    // replay button restarts the spot from the top
+    document.getElementById("ad-sound").addEventListener("click", () => {
+      const v = document.getElementById("ad-video");
+      v.currentTime = 0; v.play();
+    });
+  </script>
+</body>
+</html>

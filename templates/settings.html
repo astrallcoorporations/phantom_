@@ -1,0 +1,205 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — settings{% endblock %}
+
+{% block main %}
+<div class="content panel">
+  <div class="atmosphere atm-dark-ridge" aria-hidden="true"></div>
+  <div class="content-inner">
+    <header class="page-head">
+      <div class="txt">
+        <span class="label">SETTINGS</span>
+        <h1 data-i18n="settings">Settings</h1>
+      </div>
+    </header>
+
+    <div class="settings-grid">
+      <nav class="panel subnav settings-nav" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+        <button data-tab="account" role="tab" aria-selected="true">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-user"/></svg> My Account</button>
+        <button data-tab="privacy" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-lock"/></svg> <span data-i18n="privacy">Privacy</span></button>
+        <button data-tab="appearance" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-media"/></svg> <span data-i18n="appearance">Appearance</span></button>
+        <button data-tab="ai" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg> Phantom AI</button>
+        <button data-tab="languages" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-globe"/></svg> <span data-i18n="languages">Language</span></button>
+        <button data-tab="accessibility" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-people"/></svg> <span data-i18n="accessibility">Accessibility</span></button>
+        <button data-tab="troubleshoot" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-info"/></svg> Troubleshoot</button>
+        <hr>
+        <a class="danger" href="{{ url_for('logout') }}" role="link" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-logout"/></svg> Log out</a>
+      </nav>
+
+      <div>
+        <section class="panel panel-pad" data-pane="account" role="tabpanel" aria-label="My account">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+            <span class="avatar avatar--lg" data-profile-avatar aria-hidden="true">{{ user.name[:2] | lower }}</span>
+            <div>
+              <div style="color:var(--p-text);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px">
+                <span data-profile-name>{{ user.name }}</span>
+                {% if user.admin %}<span class="admin-badge">admin</span>{% endif %}
+                {% if user.guest %}<span class="label" style="border:1px solid var(--p-line);border-radius:5px;padding:2px 6px">guest</span>{% endif %}
+              </div>
+              <div class="mono" style="font-size:10px;color:var(--p-text-4)" data-profile-handle>{{ user.handle }}</div>
+            </div>
+            {% if user.guest %}
+            <a class="btn btn--sm" style="margin-inline-start:auto" href="{{ url_for('auth') }}">Create account</a>
+            {% else %}
+            <button class="btn btn--sm" style="margin-inline-start:auto">Edit</button>
+            {% endif %}
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Status</div><div class="d">Visible to people in your spaces.</div></div>
+            <span style="display:flex;align-items:center;gap:7px"><span class="presence presence--online" aria-hidden="true"></span><span class="presence-label">ONLINE</span></span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Email</div><div class="d">Used only to sign in.</div></div>
+            <span class="mono" style="font-size:12px;color:var(--p-text-3)">{{ user.email }}</span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Username</div></div>
+            <span class="mono" style="font-size:12px;color:var(--p-text-3)">{{ user.handle }}</span>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" data-pane="privacy" role="tabpanel" aria-label="Privacy" hidden>
+          <div class="setting-row">
+            <div><div class="t" data-i18n="ghost_mode">Ghost mode</div><div class="d">Hide typing, read receipts and presence. Communicate without behavioral pressure.</div></div>
+            <button class="switch" data-ghost-toggle role="switch" aria-checked="{{ 'true' if ghost else 'false' }}" aria-label="Ghost mode"></button>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">End-to-end encryption</div><div class="d">Always on. Not a setting — a foundation.</div></div>
+            <span class="label">ALWAYS ON</span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Trackers &amp; analytics</div><div class="d">There are none. There never will be.</div></div>
+            <span class="label">ZERO</span>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" data-pane="appearance" role="tabpanel" aria-label="Appearance" hidden>
+          <div class="setting-row" style="display:block">
+            <div style="margin-bottom:14px"><div class="t">Theme</div><div class="d">Four moods, one phantom.</div></div>
+            <div class="skin-grid">
+              {% for skin, label, c1, c2 in [
+                ('dark', 'Dark', '#0f0f12', '#8FB4FF'),
+                ('onyx', 'Onyx', '#000000', '#C8C8CC'),
+                ('light', 'Light', '#ECEDF1', '#3D6BD6'),
+                ('contrast', 'High contrast', '#000000', '#FFD23F'),
+              ] %}
+              <button class="skin-tile" data-skin-pick="{{ skin }}" aria-pressed="{{ 'true' if skin == 'dark' else 'false' }}">
+                <span class="swatch" style="background:{{ c1 }}" aria-hidden="true">
+                  <i style="background:{{ c2 }}"></i><i style="background:{{ '#ffffff' if skin != 'light' else '#0b0b0d' }};opacity:0.7"></i>
+                </span>
+                <span class="sn">{{ label }}</span>
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Atmosphere visibility</div><div class="d">How present the environment feels (15–30%).</div></div>
+            <input type="range" min="15" max="30" value="26" id="atm-range" aria-label="Atmosphere visibility percent" style="accent-color:#d9d9d9;width:140px">
+          </div>
+          <div class="setting-row" style="display:block">
+            <div style="margin-bottom:14px"><div class="t">Default atmosphere</div><div class="d">The world your home view floats in.</div></div>
+            <div class="lang-grid">
+              {% for key, a in atmospheres.items() %}
+              <button class="lang-btn" data-atm-default="{{ key }}" aria-pressed="{{ 'true' if key == 'night' else 'false' }}">
+                <span class="native" style="font-size:12px">{{ a.label }}</span>
+                <span class="code">{{ key }}</span>
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" data-pane="ai" role="tabpanel" aria-label="Phantom AI" hidden>
+          <div class="setting-row">
+            <div><div class="t">Gemini connection</div><div class="d">Phantom AI runs on Google Gemini with your own key.</div></div>
+            {% if ai_ready %}
+            <span style="display:flex;align-items:center;gap:7px"><span class="presence presence--online" aria-hidden="true"></span><span class="presence-label">CONNECTED</span></span>
+            {% else %}
+            <span class="label" style="color:var(--p-danger)">NO KEY</span>
+            {% endif %}
+          </div>
+          <div class="setting-row">
+            <div><div class="t">How to connect</div>
+              <div class="d">Put your key in <span class="mono">.env</span> → <span class="mono">gemini_api_key=""</span>, then restart phantom. Free keys at aistudio.google.com/apikey.</div></div>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Model</div></div>
+            <span class="mono" style="font-size:12px;color:var(--p-text-3)">gemini-2.5-flash</span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Supabase sync</div><div class="d">Messages mirror to your own Supabase project when keys are set in .env.</div></div>
+            {% if sb_ready %}
+            <span style="display:flex;align-items:center;gap:7px"><span class="presence presence--online" aria-hidden="true"></span><span class="presence-label">CONNECTED</span></span>
+            {% else %}
+            <span class="label">NOT SET</span>
+            {% endif %}
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Privacy</div><div class="d">Chat history is sent to Google only when you message the assistant. It is stored on this device, nowhere else.</div></div>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" data-pane="languages" role="tabpanel" aria-label="Languages" hidden>
+          <div style="margin-bottom:16px"><div class="t" style="color:var(--p-text);font-size:13.5px">Interface language</div><div class="d" style="color:var(--p-text-4);font-size:12px">Switches instantly. No reload, no friction.</div></div>
+          <div class="lang-grid">
+            <button class="lang-btn" data-lang="en"><span class="native">English</span><span class="code">EN</span></button>
+            <button class="lang-btn" data-lang="hi"><span class="native">हिन्दी</span><span class="code">HI</span></button>
+            <button class="lang-btn" data-lang="es"><span class="native">Español</span><span class="code">ES</span></button>
+            <button class="lang-btn" data-lang="fr"><span class="native">Français</span><span class="code">FR</span></button>
+            <button class="lang-btn" data-lang="de"><span class="native">Deutsch</span><span class="code">DE</span></button>
+            <button class="lang-btn" data-lang="ja"><span class="native">日本語</span><span class="code">JA</span></button>
+            <button class="lang-btn" data-lang="ar"><span class="native">العربية</span><span class="code">AR</span></button>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" data-pane="accessibility" role="tabpanel" aria-label="Accessibility" hidden>
+          <div class="setting-row">
+            <div><div class="t">Reduced motion</div><div class="d">Follows your system preference automatically.</div></div>
+            <span class="label">SYSTEM</span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Text size</div><div class="d">Scale the whole interface.</div></div>
+            <input type="range" min="85" max="130" value="100" id="text-scale" aria-label="Text size percent" style="accent-color:#d9d9d9;width:140px">
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Keyboard navigation</div><div class="d">Everything is reachable without a mouse. ⌘K opens the command center.</div></div>
+            <span class="label">ALWAYS</span>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" data-pane="troubleshoot" role="tabpanel" aria-label="Troubleshoot" hidden>
+          <div style="margin-bottom:16px">
+            <div class="t" style="color:var(--p-text);font-size:13.5px">Common fixes</div>
+            <div class="d" style="color:var(--p-text-4);font-size:12px">The answers to the bugs people actually hit.</div>
+          </div>
+          {% for item in troubleshoot %}
+          <details class="faq">
+            <summary>{{ item.q }}</summary>
+            <div class="faq-a">{{ item.a }}</div>
+          </details>
+          {% endfor %}
+          <div class="ts-actions">
+            <a class="btn btn--solid" href="{{ url_for('messages', conv_id='ai') }}">
+              <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
+              Ask Phantom AI
+            </a>
+            <a class="btn" id="email-owner"
+               href="mailto:{{ owner_email }}?subject=phantom_%20support&body=Hi%2C%0A%0AI%20hit%20a%20problem%20with%20phantom%3A%0A%0A(describe%20what%20happened%2C%20what%20you%20expected%2C%20and%20your%20browser)%0A%0A—%20sent%20from%20phantom%20troubleshoot">
+              <svg class="icon" style="width:13px;height:13px"><use href="#i-mail"/></svg>
+              Email the owner
+            </a>
+          </div>
+          <p class="label" style="margin-top:16px">OWNER · {{ owner_email }}</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

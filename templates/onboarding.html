@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>phantom_ — set up your space</title>
+  <script>try{document.documentElement.dataset.skin=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark"}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+</head>
+<body class="landing">
+  {% include "_icons.html" %}
+  <div class="atmosphere atm-moon-horizon" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="auth-wrap">
+    <main class="auth-card panel ob-card" id="onboarding" aria-label="Set up phantom" style="width:min(460px,94vw)">
+
+      <div class="ob-dots" aria-hidden="true">
+        <span class="ob-dot" aria-current="true"></span>
+        <span class="ob-dot" aria-current="false"></span>
+        <span class="ob-dot" aria-current="false"></span>
+      </div>
+
+      <!-- step 1 — who are you -->
+      <section data-step="0" class="ob-step">
+        <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+        <h1>What should we call you?</h1>
+        <p>This is all phantom ever asks. No phone number, no birthday, no contacts upload.</p>
+        <div class="field">
+          <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-user"/></svg>
+          <input type="text" id="ob-name" placeholder="your name" autocomplete="nickname" aria-label="Display name">
+        </div>
+        <div class="field">
+          <span class="mono" style="color:var(--p-text-4);font-size:13px">@</span>
+          <input type="text" id="ob-handle" placeholder="handle" autocomplete="username" aria-label="Handle">
+        </div>
+        <button class="btn btn--solid" data-next>Continue</button>
+      </section>
+
+      <!-- step 2 — choose your world -->
+      <section data-step="1" class="ob-step" hidden>
+        <h1>Choose your world.</h1>
+        <p>The atmosphere your phantom floats in. You can change it anytime.</p>
+        <div class="ob-worlds">
+          {% for key in ['moon-horizon', 'deep-space', 'frozen-peaks', 'cloud-sea', 'black-ocean', 'glass-desert'] %}
+          <button class="media-tile" data-ob-theme="{{ key }}" aria-pressed="{{ 'true' if key == 'moon-horizon' else 'false' }}"
+                  aria-label="World: {{ atmospheres[key].label }}">
+            <img src="{{ url_for('static', filename=atmospheres[key].src) }}" alt="" loading="lazy">
+            <span class="cap"><span class="t">{{ atmospheres[key].label }}</span></span>
+          </button>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn" data-back style="flex:1">Back</button>
+          <button class="btn btn--solid" data-next style="flex:2">Continue</button>
+        </div>
+      </section>
+
+      <!-- step 3 — how it behaves -->
+      <section data-step="2" class="ob-step" hidden>
+        <h1>Last thing.</h1>
+        <p>How should phantom behave?</p>
+
+        <div class="setting-row" style="text-align:start">
+          <div><div class="t">Language</div><div class="d">Switches instantly, anytime.</div></div>
+        </div>
+        <div class="ob-langs">
+          {% for code, native in [('en','English'), ('hi','हिन्दी'), ('es','Español'), ('fr','Français'), ('de','Deutsch'), ('ja','日本語'), ('ar','العربية')] %}
+          <button class="btn btn--sm" data-ob-lang="{{ code }}" aria-pressed="{{ 'true' if code == 'en' else 'false' }}">{{ native }}</button>
+          {% endfor %}
+        </div>
+
+        <div class="setting-row" style="text-align:start;margin-top:6px">
+          <div><div class="t">Start in Ghost mode</div><div class="d">No typing indicators, no read receipts, no presence.</div></div>
+          <button class="switch" id="ob-ghost" role="switch" aria-checked="false" aria-label="Start in ghost mode"></button>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:18px">
+          <button class="btn" data-back style="flex:1">Back</button>
+          <button class="btn btn--solid" id="ob-finish" style="flex:2">Enter phantom</button>
+        </div>
+      </section>
+
+      <p style="margin-top:22px" class="label">E2E ENCRYPTED · ZERO TRACKERS · YOURS</p>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+</body>
+</html>

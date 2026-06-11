@@ -1,0 +1,70 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — home{% endblock %}
+
+{% block main %}
+<div class="content panel">
+  <div class="atmosphere atm-night" aria-hidden="true"></div>
+  <div class="content-inner">
+    <header class="page-head">
+      <div class="txt">
+        <span class="label">HOME</span>
+        <h1>{{ greeting }} <span aria-hidden="true" style="opacity:0.5">☾</span></h1>
+      </div>
+      <button class="btn" data-cmdk-open>
+        <svg class="icon" style="width:13px;height:13px"><use href="#i-plus"/></svg>
+        <span data-i18n="new_message">New message</span>
+      </button>
+    </header>
+
+    <div class="home-grid" style="display:grid;grid-template-columns:1fr 1.1fr;gap:12px;align-items:stretch">
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+        <section class="panel" aria-label="Pinned">
+          <div class="panel-head"><h2 data-i18n="pinned">Pinned</h2></div>
+          <div style="padding:8px">
+            <a class="row-item" href="{{ url_for('messages', conv_id='ai') }}">
+              <span class="avatar avatar--ai" aria-hidden="true">
+                <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
+              </span>
+              <div style="min-width:0;flex:1">
+                <div class="name">Phantom AI</div>
+                <div class="sub">{{ 'ready when you are' if ai_ready else 'add your gemini key in .env' }}</div>
+              </div>
+              <svg class="icon end" style="width:12px;height:12px;color:var(--p-text-4)"><use href="#i-chevron"/></svg>
+            </a>
+            <div id="home-local-convos"></div>
+          </div>
+        </section>
+
+        <section class="panel" aria-label="Active spaces" style="flex:1">
+          <div class="panel-head"><h2 data-i18n="active_spaces">Active spaces</h2>
+            <a class="btn btn--quiet btn--sm spacer" href="{{ url_for('spaces_view') }}">All →</a>
+          </div>
+          <div style="padding:8px">
+            {% for s in (spaces.values() | list)[:4] %}
+            <a class="row-item" href="{{ url_for('spaces_view') }}">
+              <span class="rail-space thumb" style="width:30px;height:30px;border-radius:9px;background:url('{{ url_for('static', filename=atmospheres[s.atmosphere].src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9)" aria-hidden="true"></span>
+              <div style="min-width:0;flex:1">
+                <div class="name">{{ s.name }}</div>
+                <div class="sub">{{ s.tagline }}</div>
+              </div>
+              <span class="label end">{{ s.members }} <span data-i18n="members">members</span></span>
+            </a>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+
+      <section class="panel hero-panel" aria-label="Welcome">
+        <div class="atmosphere atm-cloud-sea" aria-hidden="true"></div>
+        <h2>Welcome to Phantom</h2>
+        <p>Select a conversation to start messaging — or ask Phantom AI anything.</p>
+        <a class="btn btn--solid" style="position:relative;margin-top:10px" href="{{ url_for('messages', conv_id='ai') }}">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
+          Talk to Phantom AI
+        </a>
+        <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

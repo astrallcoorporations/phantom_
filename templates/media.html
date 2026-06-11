@@ -1,0 +1,49 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — media{% endblock %}
+
+{% block main %}
+<div class="content panel">
+  <div class="atmosphere atm-glass-cube" aria-hidden="true"></div>
+  <div class="content-inner">
+    <header class="page-head">
+      <div class="txt">
+        <span class="label">MEDIA</span>
+        <h1 data-i18n="media">Media</h1>
+        <p>Everything shared, in one quiet gallery.</p>
+      </div>
+      <div class="tabs media-filters" role="tablist" aria-label="Filter media">
+        <button data-filter="all" aria-pressed="true" aria-selected="true" role="tab">All</button>
+        <button data-filter="image" aria-pressed="false" aria-selected="false" role="tab">Images</button>
+        <button data-filter="file" aria-pressed="false" aria-selected="false" role="tab">Files</button>
+      </div>
+    </header>
+
+    <span class="label" style="display:block;margin-bottom:12px">RECENT</span>
+    <div class="media-grid">
+      {% for m in media %}
+      <button class="media-tile" data-kind="{{ m.kind }}" data-title="{{ m.title }}" aria-label="Open {{ m.title }}">
+        <img src="{{ url_for('static', filename=m.src) }}" alt="{{ m.title }}" loading="lazy">
+        <span class="cap">
+          <span class="t">{{ m.title }}</span>
+          <span class="s">{{ m.source }}</span>
+        </span>
+      </button>
+      {% endfor %}
+    </div>
+
+    <span class="label" style="display:block;margin:28px 0 12px">FILES</span>
+    <div class="panel empty" style="padding:36px">
+      <svg class="icon" style="width:18px;height:18px;color:var(--p-text-4)"><use href="#i-file"/></svg>
+      <p style="font-size:12px">Files shared in your conversations will collect here.</p>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Media viewer">
+  <img src="" alt="">
+  <div class="lb-cap"><span class="t label"></span></div>
+  <button class="icon-btn lb-close" aria-label="Close viewer">
+    <svg class="icon"><use href="#i-close"/></svg>
+  </button>
+</div>
+{% endblock %}

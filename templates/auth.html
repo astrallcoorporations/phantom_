@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>phantom_ — welcome back</title>
+  <script>try{document.documentElement.dataset.skin=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark"}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+</head>
+<body class="landing">
+  {% include "_icons.html" %}
+  <div class="atmosphere atm-deep-space" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="auth-wrap">
+    <main class="auth-card panel" aria-label="Sign in or create an account">
+      <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+      <h1>Welcome to Phantom</h1>
+      <p>Private conversations. Nothing else.</p>
+
+      {% if error %}<div class="auth-error" role="alert">{{ error }}</div>{% endif %}
+      <div class="auth-error" id="auth-error" role="alert" hidden></div>
+
+      <div class="auth-tabs" role="tablist" aria-label="Sign in or sign up">
+        <button role="tab" aria-selected="true" data-auth-tab="login">Sign in</button>
+        <button role="tab" aria-selected="false" data-auth-tab="signup">Create account</button>
+      </div>
+
+      <form id="login-form" data-auth-pane="login">
+        <div class="field">
+          <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-user"/></svg>
+          <input type="text" name="identity" placeholder="username or email" autocomplete="username" aria-label="Username or email" required>
+        </div>
+        <div class="field">
+          <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-lock"/></svg>
+          <input type="password" name="password" placeholder="password" autocomplete="current-password" aria-label="Password" required>
+        </div>
+        <button class="btn btn--solid" type="submit">Sign in</button>
+      </form>
+
+      <form id="signup-form" data-auth-pane="signup" hidden>
+        <div class="field">
+          <span class="mono" style="color:var(--p-text-4);font-size:13px">@</span>
+          <input type="text" name="username" placeholder="username" autocomplete="username" aria-label="Username" required>
+        </div>
+        <div class="field">
+          <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-mail"/></svg>
+          <input type="email" name="email" placeholder="email" autocomplete="email" aria-label="Email" required>
+        </div>
+        <div class="field">
+          <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-lock"/></svg>
+          <input type="password" name="password" placeholder="password (6+ characters)" autocomplete="new-password" minlength="6" aria-label="Password" required>
+        </div>
+        <button class="btn btn--solid" type="submit">Create account</button>
+      </form>
+
+      <div class="auth-divider" aria-hidden="true">OR</div>
+
+      <a class="btn" href="{{ url_for('google_auth') }}" style="width:100%">
+        <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-globe"/></svg>
+        Continue with Google
+      </a>
+      <a class="btn btn--quiet" href="{{ url_for('auth_guest') }}" style="width:100%;margin-top:8px">
+        <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-ghost"/></svg>
+        Continue as guest
+      </a>
+
+      <p style="margin-top:20px" class="label">E2E ENCRYPTED · ZERO TRACKERS · PASSWORDS HASHED</p>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+  <script>
+    (function () {
+      const err = document.getElementById("auth-error");
+      function fail(msg) { err.textContent = msg; err.hidden = false; }
+
+      document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll("[data-auth-tab]").forEach((b) => b.setAttribute("aria-selected", String(b === tab)));
+          document.querySelectorAll("[data-auth-pane]").forEach((p) => { p.hidden = p.dataset.authPane !== tab.dataset.authTab; });
+          err.hidden = true;
+        });
+      });
+
+      async function submit(url, payload, next) {
+        try {
+          const res = await fetch(url, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) return fail(data.error || "Something went wrong.");
+          window.location.href = next;
+        } catch { fail("Could not reach the server."); }
+      }
+
+      document.getElementById("login-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const f = e.target;
+        submit("/api/login", { identity: f.identity.value, password: f.password.value }, "/app");
+      });
+
+      document.getElementById("signup-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const f = e.target;
+        submit("/api/signup", { username: f.username.value, email: f.email.value, password: f.password.value }, "/onboarding");
+      });
+    })();
+  </script>
+</body>
+</html>

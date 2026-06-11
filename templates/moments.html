@@ -1,0 +1,32 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — moments{% endblock %}
+
+{% block main %}
+<div class="content panel">
+  <div class="atmosphere atm-black-ocean" aria-hidden="true"></div>
+  <div class="content-inner">
+    <header class="page-head">
+      <div class="txt">
+        <span class="label">MOMENTS</span>
+        <h1 data-i18n="moments">Moments</h1>
+        <p>The high-signal fragments of your conversations — captured by you, kept private.</p>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Filter moments">
+        <button role="tab" aria-selected="true" data-moment-tab="all">All</button>
+        <button role="tab" aria-selected="false" data-moment-tab="text">Text</button>
+        <button role="tab" aria-selected="false" data-moment-tab="file">Files</button>
+        <button role="tab" aria-selected="false" data-moment-tab="link">Links</button>
+      </div>
+    </header>
+
+    <div class="timeline" id="pinned-moments"></div>
+
+    <div class="empty" id="moments-empty">
+      <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+      <h3>Nothing captured yet</h3>
+      <p>Hover any message and pin it — it lands here, organized by time, visible only to you.</p>
+      <a class="btn" href="{{ url_for('messages', conv_id='ai') }}">Start a conversation</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
