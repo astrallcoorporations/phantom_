@@ -1320,32 +1320,50 @@ body.ghost-on .typing, body.ghost-on .receipt { visibility: hidden; }
 .l3-status { display: flex; flex-direction: column; gap: 9px; margin-top: 64px; font-size: 10px; letter-spacing: 0.18em; color: var(--p-text-4); }
 .l3-status span { display: inline-flex; align-items: center; gap: 9px; }
 
-.l3-moon { position: relative; justify-self: end; width: min(46vw, 620px); aspect-ratio: 1; }
-.l3-moon img {
-  width: 118%; height: 118%; object-fit: contain; display: block;
-  filter: grayscale(1) brightness(0.95);
-  mix-blend-mode: screen;
-  animation: l3-moonfloat 14s ease-in-out infinite alternate;
+.l3-moon {
+  position: relative; justify-self: end;
+  width: min(50vw, 660px); aspect-ratio: 1;
+  margin-inline-end: clamp(-56px, -3vw, 0px);
 }
-@keyframes l3-moonfloat { from { transform: translateY(0) } to { transform: translateY(-14px) } }
+/* soft halo so the sphere glows out of the dark */
+.l3-moon::before {
+  content: ""; position: absolute; inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(196,206,226,0.18) 0%, rgba(150,160,190,0.06) 46%, transparent 66%);
+  filter: blur(28px);
+  animation: l3-moonfloat 16s ease-in-out infinite alternate;
+}
+.l3-moon img {
+  position: relative; z-index: 1;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  border-radius: 50%;
+  filter: grayscale(1) brightness(1.18) contrast(1.16);
+  /* feather the square photo edge into the night */
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 60%, rgba(0,0,0,0.45) 71%, transparent 80%);
+          mask-image: radial-gradient(circle at 50% 50%, #000 60%, rgba(0,0,0,0.45) 71%, transparent 80%);
+  animation: l3-moonfloat 16s ease-in-out infinite alternate;
+}
+@keyframes l3-moonfloat { from { transform: translateY(6px) } to { transform: translateY(-10px) } }
+
+/* shooting-star trajectory streaking down from the moon */
 .l3-comet {
-  position: absolute; left: -8%; bottom: 22%;
-  width: 5px; height: 5px; border-radius: 50%;
-  background: #fff; box-shadow: 0 0 14px 3px rgba(255,255,255,0.7);
-  offset-path: path("M 0 0 C 140 90, 320 130, 520 60");
-  animation: l3-comet 9s var(--ease) infinite;
+  position: absolute; z-index: 0; top: 44%; left: 0;
+  width: 50%; height: 2px; border-radius: 2px;
+  transform: rotate(20deg); transform-origin: left center;
+  background: linear-gradient(to right, transparent, rgba(220,225,240,0.5) 76%, rgba(255,255,255,0.95));
+  opacity: 0; animation: l3-comet 7s var(--ease) infinite;
 }
 .l3-comet::after {
-  content: ""; position: absolute; right: 3px; top: 1.5px;
-  width: 220px; height: 1.5px;
-  background: linear-gradient(to left, rgba(255,255,255,0.8), transparent);
-  transform-origin: right center;
+  content: ""; position: absolute; right: -3px; top: -2.5px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 12px 3px rgba(255,255,255,0.85);
 }
 @keyframes l3-comet {
-  0% { offset-distance: 0%; opacity: 0; }
-  8% { opacity: 1; }
-  46% { offset-distance: 100%; opacity: 0; }
-  100% { offset-distance: 100%; opacity: 0; }
+  0%   { opacity: 0; transform: rotate(20deg) translateX(-40px) scaleX(0.4); }
+  18%  { opacity: 1; }
+  55%  { opacity: 1; transform: rotate(20deg) translateX(0) scaleX(1); }
+  74%  { opacity: 0; transform: rotate(20deg) translateX(16px) scaleX(1); }
+  100% { opacity: 0; }
 }
 
 /* sections */
@@ -1520,13 +1538,21 @@ body.ghost-on .typing, body.ghost-on .receipt { visibility: hidden; }
 .tag-add:hover { color: var(--p-text-2); border-color: rgba(255,255,255,0.25); }
 
 @media (max-width: 1100px) {
-  .l3-hero { grid-template-columns: 1fr; min-height: 0; }
-  .l3-moon { display: none; }
+  /* keep the moon alive as a glowing backdrop instead of an empty void */
+  .l3-hero { grid-template-columns: 1fr; min-height: min(72vh, 620px); padding-block: 70px 70px; }
+  .l3-hero-copy { max-width: 560px; }
+  .l3-moon {
+    position: absolute; z-index: 0; pointer-events: none; margin: 0;
+    top: -30px; inset-inline-end: -90px; width: min(70vw, 460px); opacity: 0.55;
+  }
   .l3-action { grid-template-columns: 1fr; }
   .l3-feat { grid-template-columns: 1fr; gap: 24px; }
   .l3-worlds { grid-template-columns: repeat(3, 1fr); }
   .l3-duo { grid-template-columns: 1fr; }
   .profile-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .l3-moon { width: 300px; opacity: 0.4; top: -50px; inset-inline-end: -70px; }
 }
 @media (max-width: 640px) {
   .l3-links a:not(.l3-cta-sm) { display: none; }
