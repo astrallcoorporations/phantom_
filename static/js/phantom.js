@@ -356,6 +356,13 @@
     function go(it) {
       if (it.action === "ghost") { applyGhost(!ghost, true); close(); return; }
       if (it.action === "new-convo") { close(); startNewConvo(); return; }
+      if (it.action === "copy-pubkey") {
+        const pk = localStorage.getItem("phantom_pk") || "(no key yet)";
+        navigator.clipboard.writeText(pk).catch(() => {});
+        const inp = backdrop.querySelector("input");
+        inp.value = "public key copied ✓"; setTimeout(close, 700);
+        return;
+      }
       window.location.href = it.href;
     }
 
@@ -535,6 +542,16 @@
     });
   }
 
+  function addStatus(row, state) {
+    const bubble = row.querySelector(".bubble");
+    if (!bubble) return;
+    let s = bubble.querySelector(".msg-status");
+    if (!s) { s = document.createElement("span"); s.className = "msg-status"; s.innerHTML = "<i></i><i></i>"; bubble.appendChild(s); }
+    s.classList.toggle("delivered", state === "delivered");
+    s.firstChild.style.display = state === "sent" ? "block" : "block";
+    s.lastChild.style.display = state === "sent" ? "none" : "block";
+  }
+
   function makeBubble(scroll, m, ctx) {
     const row = document.createElement("div");
     row.className = "bubble-row" + (m.mine ? " me" : "");
@@ -597,6 +614,20 @@
       const body = (row.querySelector(".bubble") || {}).textContent || "";
       bubbleActions(row, { id, body: body.trim(), title, atmosphere, mine, local: isLocal, convId });
       renderReactionChips(row, id);
+      if (mine && !isAi) addStatus(row, "delivered");
+    });
+    // info-panel media tiles open the same viewer
+    document.querySelectorAll(".info-media-tile[data-file-id]").forEach((t) =>
+      t.addEventListener("click", () => openFileViewer(t)));
+    const addBtn2 = document.getElementById("add-member-btn2");
+    const head = document.querySelector(".chat-head");
+    if (addBtn2 && head) addBtn2.addEventListener("click", async () => {
+      const u = prompt("Add a member by username:");
+      if (!u) return;
+      const res = await fetch(`/api/spaces/${head.dataset.spaceId}/members`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u }) });
+      const d = await res.json();
+      alert(res.ok ? `Added ${d.added}` : (d.error || "Could not add member."));
     });
 
     // local conversations live entirely in localStorage
@@ -658,6 +689,7 @@
 
       // dm / space — persist to Supabase, swap in the real id for delete
       const optimistic = makeBubble(scroll, { id: "tmp" + Date.now(), author: ME, body, kind: "text", mine: true }, ctx);
+      addStatus(optimistic, "sent");
       scroll.scrollTop = scroll.scrollHeight;
       try {
         const res = await fetch(`/api/conversations/${convId}/messages`, {
@@ -666,6 +698,7 @@
         });
         const data = await res.json();
         if (data.id) optimistic.dataset.id = data.id;
+        addStatus(optimistic, "delivered");
       } catch { /* stays on screen; reload re-syncs from Supabase */ }
     });
 
@@ -727,13 +760,13 @@
       document.addEventListener("click", () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); });
       menu.addEventListener("click", (e) => e.stopPropagation());
     }
-    const clear = menu && menu.querySelector("[data-conv-clear]");
-    if (clear) clear.addEventListener("click", () => {
-      if (!confirm("Clear every message in this conversation? This cannot be undone.")) return;
-      const id = head.dataset.convId;
-      fetch("/api/conversations/" + encodeURIComponent(id), { method: "DELETE" })
-        .then(() => window.location.reload());
-    });
+    document.querySelectorAll("[data-conv-clear]").forEach((clear) =>
+      clear.addEventListener("click", () => {
+        if (!confirm("Clear every message in this conversation? This cannot be undone.")) return;
+        const id = (head && head.dataset.convId) || (document.getElementById("composer-form") || {}).dataset.conv;
+        fetch("/api/conversations/" + encodeURIComponent(id), { method: "DELETE" })
+          .then(() => window.location.reload());
+      }));
     const addBtn = document.getElementById("add-member-btn");
     if (addBtn && head) addBtn.addEventListener("click", async () => {
       const u = prompt("Add a member by username:");
@@ -1328,6 +1361,47 @@
 
   /* ======================================================================== */
 
+  /* ========================================================================
+     E2E keypair (libsodium) — X25519. Private key never leaves the device.
+     ======================================================================== */
+
+  async function initKeys() {
+    // the loader is an async ES module — wait briefly for it
+    let tries = 0;
+    while (typeof window.sodium === "undefined" && tries++ < 80) await new Promise((r) => setTimeout(r, 50));
+    if (typeof window.sodium === "undefined") return;
+    try {
+      await window.sodium.ready;
+      const s = window.sodium;
+      const isGuest = document.body.dataset.guest === "1";
+      // guest keys are ephemeral — expire after 24h
+      if (isGuest) {
+        const exp = +(localStorage.getItem("phantom_sk_exp") || 0);
+        if (exp && Date.now() > exp) {
+          localStorage.removeItem("phantom_sk"); localStorage.removeItem("phantom_pk");
+        }
+      }
+      let sk = localStorage.getItem("phantom_sk");
+      let pk = localStorage.getItem("phantom_pk");
+      if (!sk) {
+        const kp = s.crypto_box_keypair();
+        sk = s.to_base64(kp.privateKey);
+        pk = s.to_base64(kp.publicKey);
+        localStorage.setItem("phantom_sk", sk);   // private — device only, never sent
+        localStorage.setItem("phantom_pk", pk);
+        if (isGuest) localStorage.setItem("phantom_sk_exp", String(Date.now() + 86400000));
+      } else if (!pk) {
+        pk = s.to_base64(s.crypto_scalarmult_base(s.from_base64(sk)));
+        localStorage.setItem("phantom_pk", pk);
+      }
+      // publish only the public key
+      if (document.body.dataset.guest === "0") {
+        fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ public_key: pk }) }).catch(() => {});
+      }
+    } catch { /* crypto unavailable — app still works, just no key */ }
+  }
+
   // "> PHANTOM_" — letters cycle the 4 accents
   function initLogo4() {
     document.querySelectorAll("[data-logo4]").forEach((el) => {
@@ -1344,6 +1418,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     initLogo4();
+    initKeys();
     applyLanguage(lang, false);
     applyGhost(ghost, false);
     applyPrefs();

@@ -396,8 +396,13 @@ def messages(conv_id=None):
             msgs = [{"id": "seed", "author": "ai", "mine": False, "kind": "text",
                      "meta": {}, "body": "Hello. I'm Phantom AI — ask me anything, it stays between us."}]
         conv["messages"] = msgs
+        # right info panel: peer profile + recent shared media
+        if conv["type"] == "dm" and conv.get("peer"):
+            conv["peer_profile"] = find_profile(conv["peer"])
+        conv["media"] = [m for m in msgs if m["kind"] in ("file", "image")][-4:]
     elif conv:
         conv["messages"] = []
+        conv["media"] = []
     ctx["active"] = conv
     return render_template("messages.html", **ctx)
 
@@ -493,6 +498,8 @@ def api_profile_update():
         patch["display_name"] = str(data["display_name"]).strip()[:40]
     if "theme" in data and data.get("theme") in ATMOSPHERES:
         patch["theme"] = data["theme"]
+    if "public_key" in data and str(data.get("public_key") or "").strip():
+        patch["public_key"] = str(data["public_key"]).strip()[:128]
     if not patch:
         return jsonify({"error": "nothing to update"}), 400
     try:

@@ -1696,3 +1696,53 @@ body::after {
   .docs-nav { position: static; flex-direction: row; flex-wrap: wrap; }
   .termcard { justify-self: stretch; max-width: none; }
 }
+
+/* ==========================================================================
+   v4 — chat right info panel (reference image 1)
+   ========================================================================== */
+.info-col {
+  width: 280px; flex: none; display: flex; flex-direction: column;
+  gap: 14px; padding: 22px 18px; overflow-y: auto;
+}
+.info-id { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-bottom: 6px; }
+.info-id .avatar--xl { border-color: var(--p-line); box-shadow: 0 0 0 4px rgba(255,255,255,0.02); }
+.info-id h2 { font-size: 15px; color: var(--p-text); letter-spacing: 0.04em; }
+.info-status { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; color: var(--acc-green); letter-spacing: 0.08em; }
+.info-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.info-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 11px 4px; border: 1px solid var(--p-line); border-radius: var(--r-sm);
+  color: var(--p-text-3); transition: all var(--dur) var(--ease);
+}
+.info-btn span { font-size: 9px; letter-spacing: 0.06em; }
+.info-btn .icon { width: 15px; height: 15px; }
+.info-btn:hover { border-color: var(--acc-blue); color: var(--acc-blue); }
+.info-block { border-top: 1px solid var(--p-line-soft); padding-top: 14px; }
+.info-block .label { display: block; margin-bottom: 8px; }
+.info-about { font-size: 12px; color: var(--p-text-2); line-height: 1.7; }
+.info-joined, .info-key { font-size: 10px; color: var(--p-text-4); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.info-media { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.info-media-tile {
+  aspect-ratio: 1; display: grid; place-items: center;
+  border: 1px solid var(--p-line); border-radius: var(--r-sm);
+  color: var(--acc-blue); background: rgba(66,133,244,0.05); cursor: pointer;
+}
+.info-media-tile:hover { border-color: var(--acc-blue); }
+.info-empty { font-size: 11px; color: var(--p-text-4); }
+.info-rows { margin-top: auto; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--p-line-soft); padding-top: 12px; }
+.info-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 8px; border-radius: var(--r-sm); font-size: 12.5px; color: var(--p-text-2);
+}
+.info-row .icon { width: 14px; height: 14px; }
+.info-row:hover { background: rgba(255,255,255,0.04); color: var(--p-text); }
+.info-row.danger { color: var(--acc-red); }
+.info-row.danger:hover { background: var(--p-danger-bg); }
+.info-row[aria-pressed="true"] { color: var(--acc-red); }
+
+/* message status dots */
+.msg-status { display: inline-flex; gap: 2px; margin-inline-start: 7px; vertical-align: middle; }
+.msg-status i { width: 4px; height: 4px; border-radius: 50%; background: var(--acc-blue); }
+.msg-status.delivered i { background: var(--acc-green); }
+
+@media (max-width: 1180px) { .info-col { display: none; } }

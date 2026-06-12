@@ -151,6 +151,70 @@
   </div>
   {% endif %}
 </div>
+
+{% if active and active.allowed %}
+<aside class="info-col panel" aria-label="Conversation info">
+  <div class="info-id">
+    {% if active.type == 'ai' %}
+    <span class="avatar avatar--xl avatar--ai" aria-hidden="true"><svg class="icon" style="width:22px;height:22px"><use href="#i-sparkle"/></svg></span>
+    {% else %}
+    <span class="avatar avatar--xl" aria-hidden="true">{{ active.title[:2] | lower }}</span>
+    {% endif %}
+    <h2 class="mono">{{ active.title }}</h2>
+    <div class="info-status mono"><span class="presence presence--online" aria-hidden="true"></span> {{ active.sub }}</div>
+  </div>
+
+  <div class="info-actions">
+    {% if active.peer %}
+    <a class="info-btn" href="{{ url_for('profile_view', handle=active.peer) }}"><svg class="icon"><use href="#i-user"/></svg><span>Profile</span></a>
+    {% endif %}
+    <a class="info-btn" href="{{ url_for('calls_view') }}"><svg class="icon"><use href="#i-calls"/></svg><span>Voice</span></a>
+    <a class="info-btn" href="{{ url_for('calls_view') }}"><svg class="icon"><use href="#i-video"/></svg><span>Video</span></a>
+    <button class="info-btn" data-cmdk-open><svg class="icon"><use href="#i-search"/></svg><span>Search</span></button>
+  </div>
+
+  {% if active.type == 'dm' and active.peer_profile %}
+  <div class="info-block">
+    <span class="label">ABOUT</span>
+    <p class="info-about">{{ active.peer_profile.status or 'No status set.' }}</p>
+    {% if active.peer_profile.created_at %}<p class="mono info-joined">joined {{ active.peer_profile.created_at[:10] }}</p>{% endif %}
+    {% if active.peer_profile.public_key %}<p class="mono info-key" title="{{ active.peer_profile.public_key }}"><svg class="icon" style="width:11px;height:11px;color:var(--acc-blue)"><use href="#i-lock"/></svg> X25519 · key on file</p>{% endif %}
+  </div>
+  {% elif active.type == 'space' and active.space %}
+  <div class="info-block">
+    <span class="label">SPACE</span>
+    <p class="info-about">{{ active.space.tagline or 'A space for your people.' }}</p>
+    <p class="mono info-joined">{{ active.space.visibility }} · {{ active.sub }}</p>
+  </div>
+  {% endif %}
+
+  <div class="info-block">
+    <span class="label">MEDIA, LINKS &amp; FILES</span>
+    {% if active.media %}
+    <div class="info-media">
+      {% for m in active.media %}
+      <button class="info-media-tile mono" data-file-id="{{ m.id }}" data-file-name="{{ m.body }}" data-file-kind="{{ m.kind }}" data-file-meta='{{ m.meta | tojson }}' title="{{ m.body }}">
+        <svg class="icon" style="width:14px;height:14px"><use href="#i-file"/></svg>
+      </button>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="info-empty mono">No files shared yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="info-rows">
+    <button class="info-row" data-ghost-toggle aria-pressed="{{ 'true' if ghost else 'false' }}">
+      <svg class="icon"><use href="#i-ghost"/></svg> Ghost mode
+      <span class="state mono" style="margin-inline-start:auto">{{ 'ON' if ghost else 'OFF' }}</span>
+    </button>
+    {% if active.type == 'space' and active.space.owner == my_handle %}
+    <button class="info-row" id="add-member-btn2"><svg class="icon"><use href="#i-people"/></svg> Add member</button>
+    {% endif %}
+    <button class="info-row danger" data-conv-clear><svg class="icon"><use href="#i-trash"/></svg> Clear conversation</button>
+  </div>
+</aside>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

@@ -199,6 +199,7 @@
     {"title": "Moments timeline", "hint": "go to", "href": "/app/moments"},
     {"title": "Media library", "hint": "go to", "href": "/app/media"},
     {"title": "People", "hint": "go to", "href": "/app/people"},
+    {"title": "Copy my public key", "hint": "action", "action": "copy-pubkey", "href": "#"},
     {"title": "Open docs", "hint": "go to", "href": "/docs"},
     {"title": "Settings", "hint": "go to", "href": "/app/settings"},
     {"title": "Sign out", "hint": "action", "href": "/logout"}
@@ -210,6 +211,11 @@
     {% endfor %}
   }</script>
 
+  <script type="module">
+    import sodium from "https://esm.sh/libsodium-wrappers@0.7.15";
+    await sodium.ready; window.sodium = sodium;
+    window.dispatchEvent(new Event("sodium-ready"));
+  </script>
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
