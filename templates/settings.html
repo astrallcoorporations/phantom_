@@ -86,13 +86,14 @@
             <div class="skin-grid">
               {% for skin, label, c1, c2 in [
                 ('dark', 'Dark', '#0f0f12', '#8FB4FF'),
-                ('onyx', 'Onyx', '#000000', '#C8C8CC'),
                 ('light', 'Light', '#ECEDF1', '#3D6BD6'),
-                ('contrast', 'High contrast', '#000000', '#FFD23F'),
+                ('midnight', 'Midnight', '#000000', '#C8C8CC'),
+                ('glass', 'Glass', 'linear-gradient(135deg,#3a3a46,#15151c)', '#FFFFFF'),
+                ('system', 'System', 'linear-gradient(90deg,#0f0f12 50%,#ECEDF1 50%)', '#8FB4FF'),
               ] %}
               <button class="skin-tile" data-skin-pick="{{ skin }}" aria-pressed="{{ 'true' if skin == 'dark' else 'false' }}">
                 <span class="swatch" style="background:{{ c1 }}" aria-hidden="true">
-                  <i style="background:{{ c2 }}"></i><i style="background:{{ '#ffffff' if skin != 'light' else '#0b0b0d' }};opacity:0.7"></i>
+                  <i style="background:{{ c2 }}"></i><i style="background:#9b9ba3;opacity:0.7"></i>
                 </span>
                 <span class="sn">{{ label }}</span>
               </button>

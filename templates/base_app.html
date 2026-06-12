@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}phantom_{% endblock %}</title>
-  <script>try{document.documentElement.dataset.skin=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark"}catch(e){}</script>
+  <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
@@ -20,6 +20,7 @@
       <a class="rail-brand" href="{{ url_for('home') }}">
         <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
         <span>phantom_</span>
+        <span class="presence presence--online" style="margin-inline-start:auto" role="img" aria-label="connected"></span>
       </a>
 
       <button class="rail-search" data-cmdk-open aria-label="Open command center">
@@ -75,14 +76,16 @@
           <span class="state">{{ 'ON' if ghost else 'OFF' }}</span>
         </button>
         <div class="rail-me">
-          <span class="avatar" data-profile-avatar aria-hidden="true">{{ user.name[:2] | lower }}</span>
-          <div class="meta">
-            <div class="n" style="display:flex;align-items:center;gap:6px">
-              <span data-profile-name>{{ user.name }}</span>
-              {% if user.admin %}<span class="admin-badge">admin</span>{% endif %}
-            </div>
-            <div class="presence-label" data-profile-handle>{{ user.handle }}</div>
-          </div>
+          <a href="{{ url_for('profile_view') }}" style="display:flex;align-items:center;gap:10px;min-width:0;flex:1" aria-label="Open your profile">
+            <span class="avatar" data-profile-avatar aria-hidden="true">{{ user.name[:2] | lower }}</span>
+            <span class="meta">
+              <span class="n" style="display:flex;align-items:center;gap:6px">
+                <span data-profile-name>{{ user.name }}</span>
+                {% if user.admin %}<span class="admin-badge">admin</span>{% endif %}
+              </span>
+              <span class="presence-label" data-profile-handle>{{ user.handle }}</span>
+            </span>
+          </a>
           <a class="icon-btn" href="{{ url_for('logout') }}" aria-label="Log out" style="margin-inline-start:auto;color:var(--p-danger)">
             <svg class="icon" style="width:13px;height:13px"><use href="#i-logout"/></svg>
           </a>
@@ -135,7 +138,7 @@
 
         <label class="field-label">Theme</label>
         <div class="picker-row" data-picker="skin">
-          {% for skin, label, c in [('dark','Dark','#0f0f12'), ('onyx','Onyx','#000'), ('light','Light','#ecedf1'), ('contrast','Contrast','#000')] %}
+          {% for skin, label, c in [('dark','Dark','#0f0f12'), ('midnight','Midnight','#000'), ('light','Light','#ecedf1'), ('glass','Glass','#3a3a46')] %}
           <button type="button" class="skin-chip" data-value="{{ skin }}" aria-pressed="{{ 'true' if skin == 'dark' else 'false' }}">
             <span class="dot" style="background:{{ c }}"></span>{{ label }}
           </button>
@@ -191,6 +194,7 @@
     {% endfor %}
     {"title": "Toggle ghost mode", "hint": "action", "action": "ghost", "href": "#"},
     {"title": "New conversation", "hint": "action", "action": "new-convo", "href": "#"},
+    {"title": "My profile", "hint": "go to", "href": "/app/profile"},
     {"title": "Moments timeline", "hint": "go to", "href": "/app/moments"},
     {"title": "Media library", "hint": "go to", "href": "/app/media"},
     {"title": "People", "hint": "go to", "href": "/app/people"},

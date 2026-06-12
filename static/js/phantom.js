@@ -217,14 +217,28 @@
      Skins — dark / onyx / light / high contrast
      ======================================================================== */
 
-  function applySkin(skin) {
-    const valid = ["dark", "onyx", "light", "contrast"];
-    skin = valid.includes(skin) ? skin : "dark";
-    store.setPref("skin", skin);
-    document.documentElement.dataset.skin = skin;
-    document.querySelectorAll("[data-skin-pick]").forEach((b) =>
-      b.setAttribute("aria-pressed", String(b.dataset.skinPick === skin)));
+  const SKINS = ["dark", "light", "midnight", "glass", "system"];
+  const LEGACY_SKINS = { onyx: "midnight", contrast: "dark" };
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function resolveSkin(pref) {
+    return pref === "system" ? (systemDark.matches ? "dark" : "light") : pref;
   }
+
+  function applySkin(pref) {
+    pref = LEGACY_SKINS[pref] || pref;
+    if (!SKINS.includes(pref)) pref = "dark";
+    store.setPref("skin", pref);
+    document.documentElement.dataset.skin = resolveSkin(pref);
+    document.documentElement.dataset.skinPref = pref;
+    document.querySelectorAll("[data-skin-pick]").forEach((b) =>
+      b.setAttribute("aria-pressed", String(b.dataset.skinPick === pref)));
+  }
+
+  // follow the OS live when the System theme is chosen
+  systemDark.addEventListener("change", () => {
+    if (store.getPref("skin", "dark") === "system") applySkin("system");
+  });
 
   /* ========================================================================
      Themes — the chosen world re-skins the whole app
@@ -1198,6 +1212,82 @@
   }
 
   /* ========================================================================
+     Landing v3 — living chat demo + play-demo modal
+     ======================================================================== */
+
+  function initLandingDemo() {
+    const box = document.getElementById("demo-msgs");
+    if (!box) return;
+    const typing = document.getElementById("demo-typing");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // terminal panels: type their lines when scrolled into view
+    document.querySelectorAll("[data-type-line]").forEach((el, i) => {
+      const full = el.textContent;
+      el.textContent = "";
+      const io2 = new IntersectionObserver((en) => {
+        if (!en[0].isIntersecting) return;
+        io2.disconnect();
+        if (reduce) { el.textContent = full; return; }
+        let k = 0;
+        setTimeout(function tick() {
+          el.textContent = full.slice(0, ++k);
+          if (k < full.length) setTimeout(tick, 26);
+        }, 350 + i * 900);
+      }, { threshold: 0.4 });
+      io2.observe(el);
+    });
+
+    const SCRIPT = [
+      { who: "them", text: "Hey, are you free later?", tm: "11:23 PM" },
+      { who: "me", text: "Yeah, thinking of going off the grid.", tm: "11:24 PM" },
+      { who: "them", text: "Perfect. Moon Horizon in 10?", tm: "11:24 PM" },
+    ];
+
+    function bubble(m) {
+      const el = document.createElement("div");
+      el.className = "l3-demo-msg" + (m.who === "me" ? " me" : "");
+      el.innerHTML = "<span></span><span class='tm'></span>";
+      el.children[0].textContent = m.text;
+      el.children[1].textContent = m.tm;
+      box.appendChild(el);
+    }
+
+    if (reduce) { SCRIPT.forEach(bubble); return; }
+
+    let stop = false;
+    async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
+    async function loop() {
+      while (!stop) {
+        box.innerHTML = "";
+        for (const m of SCRIPT) {
+          typing.hidden = m.who !== "them";
+          await wait(m.who === "them" ? 1300 : 900);
+          typing.hidden = true;
+          bubble(m);
+          await wait(700);
+        }
+        typing.hidden = false;
+        await wait(2600);
+        typing.hidden = true;
+      }
+    }
+    const io = new IntersectionObserver((en) => {
+      if (en[0].isIntersecting) { io.disconnect(); loop(); }
+    }, { threshold: 0.3 });
+    io.observe(box);
+
+    const play = document.getElementById("play-demo");
+    const modal = document.getElementById("demo-modal");
+    const video = document.getElementById("demo-video");
+    if (play && modal) {
+      play.addEventListener("click", () => { openModal(modal); video.play().catch(() => {}); });
+      modal.addEventListener("click", (e) => { if (e.target === modal) video.pause(); });
+      modal.querySelector("[data-modal-close]").addEventListener("click", () => video.pause());
+    }
+  }
+
+  /* ========================================================================
      Settings tabs
      ======================================================================== */
 
@@ -1232,6 +1322,7 @@
     initMoments();
     initMedia();
     initOnboarding();
+    initLandingDemo();
     initMotion();
     initSettings();
 

@@ -134,7 +134,7 @@ ATMOSPHERES = {
     "halo":         {"label": "Halo",         "src": "img/atm/halo.jpg"},
     "dark-ridge":   {"label": "Dark Ridge",   "src": "img/atm/dark-ridge.jpg"},
 }
-SKINS = ["dark", "onyx", "light", "contrast"]
+SKINS = ["dark", "light", "midnight", "glass"]  # + "system", resolved client-side
 
 MEDIA = [
     {"src": a["src"], "title": a["label"], "kind": "image",
@@ -434,6 +434,66 @@ def media_view():
 @app.route("/app/settings")
 def settings_view():
     return render_template("settings.html", **base_context("settings"))
+
+
+@app.route("/app/profile")
+@app.route("/app/u/<handle>")
+def profile_view(handle=None):
+    ctx = base_context("profile")
+    me = ctx["my_handle"]
+    target = (handle or me).lstrip("@").lower()
+    profile = find_profile(target)
+    if not profile:
+        profile = {"handle": target, "display_name": ctx["user"]["name"],
+                   "status": "", "tags": [], "theme": "moon-horizon",
+                   "is_admin": ctx["user"]["admin"], "is_guest": ctx["user"]["guest"],
+                   "created_at": ""}
+    their_spaces = user_spaces(target)
+    if target == me:
+        shared = their_spaces
+    else:
+        shared = [s for s in their_spaces
+                  if s.get("visibility") == "public" or is_member(s["id"], me)]
+    contacts_n = len(sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", target)))
+    is_contact = bool(sb_rows(lambda c: c.table("contacts").select("id")
+                              .eq("owner", me).eq("contact", target).limit(1)))
+    ctx.update({
+        "profile": profile,
+        "own": target == me,
+        "shared_spaces": shared,
+        "contacts_n": contacts_n,
+        "is_contact": is_contact,
+        "joined": (profile.get("created_at") or "")[:10],
+    })
+    return render_template("profile.html", **ctx)
+
+
+@app.post("/api/profile")
+def api_profile_update():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    data = request.json or {}
+    patch = {}
+    if "status" in data:
+        patch["status"] = str(data.get("status") or "")[:80]
+    if "tags" in data:
+        tags = [str(t)[:24] for t in (data.get("tags") or []) if str(t).strip()][:8]
+        patch["tags"] = tags
+    if "display_name" in data and str(data.get("display_name") or "").strip():
+        patch["display_name"] = str(data["display_name"]).strip()[:40]
+    if "theme" in data and data.get("theme") in ATMOSPHERES:
+        patch["theme"] = data["theme"]
+    if not patch:
+        return jsonify({"error": "nothing to update"}), 400
+    try:
+        sb().table("profiles").update(patch).eq("handle", user_handle(user)).execute()
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:160]}), 500
+    if "display_name" in patch:
+        session["user"]["name"] = patch["display_name"]
+        session.modified = True
+    return jsonify({"ok": True, **patch})
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,159 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — {{ profile.display_name }}{% endblock %}
+
+{% block main %}
+<div class="content panel" style="overflow-y:auto">
+  <div class="profile-cover">
+    <div class="atmosphere atm-{{ profile.theme if profile.theme in atmospheres else 'moon-horizon' }}" aria-hidden="true"></div>
+  </div>
+
+  <header class="profile-head">
+    <span class="avatar avatar--xl" aria-hidden="true">{{ profile.display_name[:2] | lower }}</span>
+    <div class="profile-id">
+      <h1>
+        <span id="pf-name">{{ profile.display_name }}</span>
+        {% if profile.is_admin %}<span class="admin-badge">admin</span>{% endif %}
+        {% if profile.is_guest %}<span class="label" style="border:1px solid var(--p-line);border-radius:5px;padding:2px 6px">guest</span>{% endif %}
+        <span style="display:inline-flex;align-items:center;gap:6px"><span class="presence presence--online" aria-hidden="true"></span><span class="presence-label">ONLINE</span></span>
+      </h1>
+      <div class="mono">@{{ profile.handle }}{% if joined %} · joined {{ joined }}{% endif %}</div>
+      <div class="profile-status">
+        <svg class="icon" style="width:12px;height:12px;color:var(--p-text-4)"><use href="#i-edit"/></svg>
+        {% if own %}
+        <input type="text" id="pf-status" value="{{ profile.status or '' }}" placeholder="Set a status — a quiet line under your name"
+               maxlength="80" aria-label="Your status">
+        <span class="label" id="pf-status-saved" hidden>SAVED</span>
+        {% else %}
+        <span>{{ profile.status or 'No status.' }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="profile-actions">
+      {% if own %}
+      <a class="btn btn--sm" href="{{ url_for('settings_view') }}#appearance">
+        <svg class="icon" style="width:12px;height:12px"><use href="#i-media"/></svg> Customize theme</a>
+      <a class="btn btn--sm" href="{{ url_for('settings_view') }}">
+        <svg class="icon" style="width:12px;height:12px"><use href="#i-settings"/></svg> Settings</a>
+      {% else %}
+      <a class="btn btn--sm btn--solid" href="{{ url_for('messages', conv_id='dm-' + profile.handle, t=profile.display_name) }}">
+        <svg class="icon" style="width:12px;height:12px"><use href="#i-messages"/></svg> Message</a>
+      {% if not is_contact %}
+      <button class="btn btn--sm" id="pf-add" data-handle="{{ profile.handle }}">
+        <svg class="icon" style="width:12px;height:12px"><use href="#i-plus"/></svg> Add</button>
+      {% endif %}
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="content-inner" style="padding-top:6px">
+    <section style="margin-bottom:18px" aria-label="Tags">
+      <span class="label" style="display:block;margin-bottom:10px">TAGS</span>
+      <div class="chips" id="pf-tags" data-own="{{ '1' if own else '0' }}">
+        {% for tag in profile.tags or [] %}
+        <span class="tag-chip" data-tag="{{ tag }}">{{ tag }}{% if own %} <button aria-label="Remove tag {{ tag }}">×</button>{% endif %}</span>
+        {% endfor %}
+        {% if own %}
+        <button class="tag-chip tag-add" id="pf-tag-add">+ add tag</button>
+        {% endif %}
+        {% if not own and not (profile.tags or []) %}
+        <span class="label">NONE YET</span>
+        {% endif %}
+      </div>
+    </section>
+
+    <div class="profile-grid">
+      <section class="panel" aria-label="{{ 'Your spaces' if own else 'Shared spaces' }}">
+        <div class="panel-head"><h2>{{ 'Your spaces' if own else 'Spaces you share' }}</h2></div>
+        <div style="padding:8px">
+          {% for s in shared_spaces[:6] %}
+          <a class="row-item" href="{{ url_for('messages', conv_id='space-' + s.id) }}">
+            <span style="width:30px;height:30px;border-radius:9px;background:url('{{ url_for('static', filename=atmospheres.get(s.atmosphere, atmospheres['moon-horizon']).src) }}') center/cover;border:1px solid var(--p-line);filter:grayscale(1) brightness(0.9);flex:none" aria-hidden="true"></span>
+            <div style="min-width:0;flex:1">
+              <div class="name">{{ s.name }}</div>
+              <div class="sub">{{ s.members }} member{{ '' if s.members == 1 else 's' }}</div>
+            </div>
+            {% if s.visibility == 'private' %}<svg class="icon end" style="width:11px;height:11px;color:var(--p-text-4)"><use href="#i-lock"/></svg>{% endif %}
+          </a>
+          {% else %}
+          <div class="empty" style="padding:26px"><p style="font-size:12px">{{ 'No spaces yet — create one.' if own else 'No shared spaces yet.' }}</p></div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="profile-stats">
+          <div class="panel stat-tile"><div class="v">{{ shared_spaces | length }}</div><div class="k">spaces</div></div>
+          <div class="panel stat-tile"><div class="v">{{ contacts_n }}</div><div class="k">people</div></div>
+          <div class="panel stat-tile"><div class="v">{{ (profile.tags or []) | length }}</div><div class="k">tags</div></div>
+        </div>
+        <section class="panel" aria-label="World">
+          <div class="panel-head"><h2>Their world</h2></div>
+          <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+            <span style="width:44px;height:44px;border-radius:12px;background:url('{{ url_for('static', filename=atmospheres.get(profile.theme, atmospheres['moon-horizon']).src) }}') center/cover;border:1px solid var(--p-line);flex:none" aria-hidden="true"></span>
+            <div>
+              <div style="color:var(--p-text);font-size:13.5px">{{ atmospheres.get(profile.theme, atmospheres['moon-horizon']).label }}</div>
+              <div class="mono" style="font-size:10px;color:var(--p-text-4)">{{ 'YOUR ATMOSPHERE' if own else 'PREFERRED ATMOSPHERE' }}</div>
+            </div>
+          </div>
+        </section>
+        <section class="panel" aria-label="Privacy">
+          <div style="padding:14px 16px">
+            <span class="label">PRIVACY</span>
+            <p style="font-size:12px;color:var(--p-text-4);margin-top:8px;line-height:1.7">
+              Profiles show only what you choose. No activity feed, no last-seen, no metrics.
+            </p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const statusEl = document.getElementById("pf-status");
+    if (statusEl) {
+      let t;
+      statusEl.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(async () => {
+          await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: statusEl.value }) });
+          const ok = document.getElementById("pf-status-saved");
+          ok.hidden = false; setTimeout(() => (ok.hidden = true), 1200);
+        }, 600);
+      });
+    }
+
+    const tagsBox = document.getElementById("pf-tags");
+    if (tagsBox && tagsBox.dataset.own === "1") {
+      const collect = () => [...tagsBox.querySelectorAll(".tag-chip[data-tag]")].map((c) => c.dataset.tag);
+      const save = () => fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: collect() }) });
+      tagsBox.addEventListener("click", (e) => {
+        const rm = e.target.closest(".tag-chip[data-tag] button");
+        if (rm) { rm.closest(".tag-chip").remove(); save(); }
+      });
+      document.getElementById("pf-tag-add").addEventListener("click", () => {
+        const v = prompt("Add a tag (e.g. night-owl, designer):");
+        if (!v || !v.trim()) return;
+        const chip = document.createElement("span");
+        chip.className = "tag-chip";
+        chip.dataset.tag = v.trim().slice(0, 24);
+        chip.innerHTML = chip.dataset.tag + ' <button aria-label="Remove">×</button>';
+        document.getElementById("pf-tag-add").before(chip);
+        save();
+      });
+    }
+
+    const add = document.getElementById("pf-add");
+    if (add) add.addEventListener("click", async () => {
+      const r = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact: add.dataset.handle }) });
+      add.textContent = r.ok ? "Added ✓" : "Failed";
+    });
+  })();
+</script>
+{% endblock %}

@@ -19,7 +19,9 @@
     <div class="home-grid" style="display:grid;grid-template-columns:1fr 1.1fr;gap:12px;align-items:stretch">
       <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
         <section class="panel" aria-label="Pinned">
-          <div class="panel-head"><h2 data-i18n="pinned">Pinned</h2></div>
+          <div class="panel-head"><h2 data-i18n="pinned">Pinned</h2>
+            <svg class="icon spacer" style="width:13px;height:13px;color:var(--p-text-4)"><use href="#i-pin"/></svg>
+          </div>
           <div style="padding:8px">
             <a class="row-item" href="{{ url_for('messages', conv_id='ai') }}">
               <span class="avatar avatar--ai" aria-hidden="true">
@@ -60,10 +62,11 @@
       </div>
 
       <section class="panel hero-panel" aria-label="Welcome">
-        <div class="atmosphere atm-cloud-sea" aria-hidden="true"></div>
-        <h2>Welcome to Phantom</h2>
-        <p>Select a conversation to start messaging — or ask Phantom AI anything.</p>
-        <a class="btn btn--solid" style="position:relative;margin-top:10px" href="{{ url_for('messages', conv_id='ai') }}">
+        <div class="atmosphere atm-frozen-peaks" aria-hidden="true"></div>
+        <span class="label" style="position:relative">WELCOME TO</span>
+        <h2 style="font-size:34px;font-weight:600;margin-top:2px">Phantom</h2>
+        <p>Select a conversation to start messaging<br>— or ask Phantom AI anything.</p>
+        <a class="btn btn--solid" style="position:relative;margin-top:12px" href="{{ url_for('messages', conv_id='ai') }}">
           <svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg>
           Talk to Phantom AI
         </a>
