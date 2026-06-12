@@ -61,7 +61,10 @@
         <div class="title" id="chat-title">{{ active.title }}</div>
         <div class="sub">{{ active.sub }}</div>
       </div>
-      <div class="actions">
+      <span class="e2e-badge mono" title="Encrypted in transit and at rest">
+        <svg class="icon" style="width:10px;height:10px"><use href="#i-lock"/></svg> ENCRYPTED
+      </span>
+      <div class="actions" style="margin-inline-start:0">
         {% if active.type == 'space' and active.space.owner == my_handle %}
         <button class="icon-btn" id="add-member-btn" aria-label="Add member" title="Add member">
           <svg class="icon"><use href="#i-people"/></svg>
@@ -88,15 +91,10 @@
     <div class="chat-scroll" id="chat-scroll" aria-live="polite">
       {% for m in active.messages %}
       <div class="bubble-row {{ 'me' if m.mine }}" data-id="{{ m.id }}" data-author="{{ m.author }}" data-mine="{{ '1' if m.mine else '0' }}">
-        {% if not m.mine %}
-          {% if active.type == 'ai' %}
-          <span class="avatar avatar--ai" aria-hidden="true"><svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg></span>
-          {% else %}
-          <span class="avatar" aria-hidden="true">{{ m.author[:2] | lower }}</span>
-          {% endif %}
-        {% endif %}
+        <span class="msg-pre mono" aria-hidden="true">&gt;</span>
+        <span class="msg-author mono">{{ 'you' if m.mine else ('phantom-ai' if m.author == 'ai' else m.author) }}</span>
         {% if m.kind in ('file', 'image') %}
-        <button class="bubble bubble--file" data-file-id="{{ m.id }}" data-file-name="{{ m.body }}" data-file-kind="{{ m.kind }}" data-file-meta='{{ m.meta | tojson }}'>
+        <button class="bubble bubble--file mono" data-file-id="{{ m.id }}" data-file-name="{{ m.body }}" data-file-kind="{{ m.kind }}" data-file-meta='{{ m.meta | tojson }}'>
           <svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg>
           <span>{{ m.body }}</span>
           <span class="fsize">{{ m.meta.size or 'open' }}</span>
@@ -106,10 +104,15 @@
         {% endif %}
       </div>
       {% endfor %}
+      <div class="l3-demo-typing mono" id="remote-typing" hidden>
+        <span class="typing"><span></span><span></span><span></span></span>
+        <span id="remote-typing-name"></span> is typing…
+      </div>
     </div>
 
     <div class="composer">
       <form class="composer-inner" id="composer-form" data-conv="{{ active.id }}"
+            data-sid="{{ active.sid }}" data-rt="{{ '1' if active.type in ('dm', 'space') else '0' }}"
             data-title="{{ active.title }}" data-atmosphere="{{ active.atmosphere }}"
             {% if active.type == 'ai' %}data-ai="1"{% endif %}
             {% if active.type == 'local' %}data-local="1"{% endif %}>
@@ -118,6 +121,10 @@
         <input type="file" id="file-input" hidden aria-hidden="true" tabindex="-1">
         <button class="icon-btn" type="button" id="attach-btn" aria-label="Attach file">
           <svg class="icon"><use href="#i-attach"/></svg>
+        </button>
+        <button class="icon-btn" type="button" data-ghost-toggle
+                aria-pressed="{{ 'true' if ghost else 'false' }}" aria-label="Toggle ghost mode" title="Ghost mode">
+          <svg class="icon"><use href="#i-ghost"/></svg>
         </button>
         <button class="icon-btn" type="submit" aria-label="Send message">
           <svg class="icon"><use href="#i-send"/></svg>
@@ -144,4 +151,68 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if active and active.allowed and active.type in ('dm', 'space') and sb_ready %}
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // Realtime: no polling — new rows stream in over WebSocket.
+  (function () {
+    const form = document.getElementById("composer-form");
+    const scroll = document.getElementById("chat-scroll");
+    const me = document.body.dataset.me || "me";
+    const sid = form.dataset.sid;
+    const client = window.supabase.createClient("{{ sb_url }}", "{{ sb_anon }}");
+
+    function appendRemote(m) {
+      if (scroll.querySelector(`[data-id="${m.id}"]`)) return;             // already shown
+      if (m.author === me) {                                               // our optimistic row, claim it
+        const tmp = [...scroll.querySelectorAll('[data-id^="tmp"],[data-id^="c"]')].reverse()
+          .find((r) => (r.querySelector(".bubble") || {}).textContent === m.body);
+        if (tmp) { tmp.dataset.id = m.id; return; }
+      }
+      const row = document.createElement("div");
+      row.className = "bubble-row";
+      row.dataset.id = m.id; row.dataset.author = m.author; row.dataset.mine = "0";
+      row.innerHTML = '<span class="msg-pre mono" aria-hidden="true">&gt;</span>' +
+        '<span class="msg-author mono"></span><div class="bubble"></div>';
+      row.querySelector(".msg-author").textContent = m.author;
+      row.querySelector(".bubble").textContent = m.body;
+      scroll.insertBefore(row, document.getElementById("remote-typing"));
+      scroll.scrollTop = scroll.scrollHeight;
+      hideTyping();
+    }
+
+    client.channel("messages:" + sid)
+      .on("postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: "conversation_id=eq." + sid },
+          (payload) => appendRemote(payload.new))
+      .subscribe();
+
+    // ephemeral typing — broadcast only, never stored
+    const typingEl = document.getElementById("remote-typing");
+    const typingName = document.getElementById("remote-typing-name");
+    let hideTimer;
+    function hideTyping() { typingEl.hidden = true; clearTimeout(hideTimer); }
+    const tch = client.channel("typing:" + sid)
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        if (payload.username === me) return;
+        typingName.textContent = payload.username;
+        typingEl.hidden = false;
+        scroll.scrollTop = scroll.scrollHeight;
+        clearTimeout(hideTimer); hideTimer = setTimeout(hideTyping, 3000);
+      })
+      .subscribe();
+    let lastSent = 0;
+    form.querySelector("input[name=body]").addEventListener("input", () => {
+      if (document.body.classList.contains("ghost-on")) return;            // ghost mode: no trace
+      const now = Date.now();
+      if (now - lastSent < 1500) return;
+      lastSent = now;
+      tch.send({ type: "broadcast", event: "typing", payload: { username: me } });
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

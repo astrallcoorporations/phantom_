@@ -541,15 +541,15 @@
     row.dataset.id = m.id;
     row.dataset.author = m.author || "";
     row.dataset.mine = m.mine ? "1" : "0";
-    if (!m.mine) {
-      const av = document.createElement("span");
-      av.className = "avatar" + (ctx.isAi ? " avatar--ai" : "");
-      av.setAttribute("aria-hidden", "true");
-      av.innerHTML = ctx.isAi
-        ? '<svg class="icon" style="width:11px;height:11px"><use href="#i-sparkle"/></svg>'
-        : (m.author || "?").slice(0, 2).toLowerCase();
-      row.appendChild(av);
-    }
+    const pre = document.createElement("span");
+    pre.className = "msg-pre mono";
+    pre.setAttribute("aria-hidden", "true");
+    pre.textContent = ">";
+    row.appendChild(pre);
+    const who = document.createElement("span");
+    who.className = "msg-author mono";
+    who.textContent = m.mine ? "you" : (m.author === "ai" ? "phantom-ai" : (m.author || "?"));
+    row.appendChild(who);
     if (m.kind === "file" || m.kind === "image") {
       const b = document.createElement("button");
       b.className = "bubble bubble--file";
@@ -568,7 +568,8 @@
       b.textContent = m.body;
       row.appendChild(b);
     }
-    scroll.appendChild(row);
+    const anchor = scroll.querySelector("#remote-typing");
+    if (anchor) scroll.insertBefore(row, anchor); else scroll.appendChild(row);
     bubbleActions(row, { id: m.id, body: m.body, title: ctx.title, atmosphere: ctx.atmosphere,
                          mine: m.mine, local: ctx.isLocal, convId: ctx.convId });
     renderReactionChips(row, m.id);
@@ -1216,10 +1217,31 @@
      ======================================================================== */
 
   function initLandingDemo() {
+    const reduce0 = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // hero terminal: type the ✓ success lines when visible
+    const tcLines = document.querySelectorAll("[data-tc-type]");
+    if (tcLines.length) {
+      tcLines.forEach((el, i) => {
+        const full = el.textContent;
+        el.textContent = "";
+        const io3 = new IntersectionObserver((en) => {
+          if (!en[0].isIntersecting) return;
+          io3.disconnect();
+          if (reduce0) { el.textContent = full; return; }
+          let k = 0;
+          setTimeout(function tick() {
+            el.textContent = full.slice(0, ++k);
+            if (k < full.length) setTimeout(tick, 24);
+          }, 500 + i * 800);
+        }, { threshold: 0.3 });
+        io3.observe(el);
+      });
+    }
+
     const box = document.getElementById("demo-msgs");
     if (!box) return;
     const typing = document.getElementById("demo-typing");
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = reduce0;
 
     // terminal panels: type their lines when scrolled into view
     document.querySelectorAll("[data-type-line]").forEach((el, i) => {
@@ -1306,7 +1328,22 @@
 
   /* ======================================================================== */
 
+  // "> PHANTOM_" — letters cycle the 4 accents
+  function initLogo4() {
+    document.querySelectorAll("[data-logo4]").forEach((el) => {
+      const text = el.textContent;
+      el.textContent = "";
+      [...text].forEach((ch, i) => {
+        const s = document.createElement("span");
+        s.className = "lg-" + (i % 4);
+        s.textContent = ch;
+        el.appendChild(s);
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    initLogo4();
     applyLanguage(lang, false);
     applyGhost(ghost, false);
     applyPrefs();

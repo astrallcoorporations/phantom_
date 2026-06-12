@@ -6,8 +6,7 @@
   <title>{% block title %}phantom_{% endblock %}</title>
   <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
 </head>
 <body data-view="{{ view }}" data-guest="{{ '1' if user.guest else '0' }}" data-me="{{ my_handle }}"{% if ghost %} class="ghost-on"{% endif %}>
@@ -17,9 +16,8 @@
 
   <div class="shell">
     <nav class="rail panel" aria-label="Primary">
-      <a class="rail-brand" href="{{ url_for('home') }}">
-        <span class="cube" aria-hidden="true"><span class="cube-core"></span></span>
-        <span>phantom_</span>
+      <a class="rail-brand mono" href="{{ url_for('home') }}">
+        <span data-logo4>&gt; PHANTOM_</span>
         <span class="presence presence--online" style="margin-inline-start:auto" role="img" aria-label="connected"></span>
       </a>
 
@@ -89,6 +87,9 @@
           <a class="icon-btn" href="{{ url_for('logout') }}" aria-label="Log out" style="margin-inline-start:auto;color:var(--p-danger)">
             <svg class="icon" style="width:13px;height:13px"><use href="#i-logout"/></svg>
           </a>
+        </div>
+        <div class="sys-strip mono" aria-label="System status">
+          <i class="l3-dot l3-dot--ok"></i> SYSTEM ONLINE · 0 LOGS · E2E ACTIVE
         </div>
       </div>
     </nav>
@@ -198,7 +199,9 @@
     {"title": "Moments timeline", "hint": "go to", "href": "/app/moments"},
     {"title": "Media library", "hint": "go to", "href": "/app/media"},
     {"title": "People", "hint": "go to", "href": "/app/people"},
-    {"title": "Settings", "hint": "go to", "href": "/app/settings"}
+    {"title": "Open docs", "hint": "go to", "href": "/docs"},
+    {"title": "Settings", "hint": "go to", "href": "/app/settings"},
+    {"title": "Sign out", "hint": "action", "href": "/logout"}
   ]</script>
 
   <script type="application/json" id="atm-data">{

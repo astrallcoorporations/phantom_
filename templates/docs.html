@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>phantom_ — docs</title>
+  <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+</head>
+<body class="landing land3">
+  {% include "_icons.html" %}
+  <div class="grain" aria-hidden="true"></div>
+
+  <nav class="l3-nav" aria-label="Primary">
+    <a class="l3-brand mono" data-logo4 href="/">&gt; PHANTOM_</a>
+    <div class="l3-links mono">
+      <a href="{{ url_for('docs') }}" style="color:var(--acc-blue)">DOCS</a>
+      <a href="#api">API</a>
+      <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GITHUB</a>
+      <a href="{{ url_for('auth') }}">SIGN IN</a>
+      <a class="l3-cta-sm" href="{{ url_for('auth') }}">GET PHANTOM →</a>
+    </div>
+  </nav>
+
+  <div class="docs-wrap">
+    <nav class="docs-nav mono" aria-label="Docs sections">
+      <a href="#quickstart" class="on">QUICK START</a>
+      <a href="#api">REST API</a>
+      <a href="#realtime">REALTIME EVENTS</a>
+      <a href="#encryption">ENCRYPTION</a>
+      <a href="#selfhost">SELF-HOSTING</a>
+    </nav>
+
+    <div class="docs-body mono">
+      <h2 id="quickstart">&gt; QUICK START</h2>
+      <p><span style="color:var(--acc-blue)">01</span> — Clone and install.</p>
+      <div class="codeblock"><span class="lang">shell</span><button class="copy-btn" data-copy aria-label="Copy"><svg class="icon" style="width:12px;height:12px"><use href="#i-file"/></svg></button>$ git clone https://github.com/astrallcoorporations/phantom_.git
+$ cd phantom_ && pip install -r requirements.txt</div>
+      <p><span style="color:var(--acc-blue)">02</span> — Configure keys in <span style="color:var(--p-text)">.env</span> (see Self-hosting below).</p>
+      <p><span style="color:var(--acc-blue)">03</span> — Run, then create an account or continue as guest.</p>
+      <div class="codeblock"><span class="lang">shell</span><button class="copy-btn" data-copy aria-label="Copy"><svg class="icon" style="width:12px;height:12px"><use href="#i-file"/></svg></button>$ python app.py
+ * Running on http://127.0.0.1:5000</div>
+
+      <h2 id="api">&gt; REST API</h2>
+      <p>Session-cookie auth. Sign in via <span style="color:var(--p-text)">/api/login</span> first; all <span style="color:var(--p-text)">/app</span> and write routes require a session.</p>
+      <table class="docs-table">
+        <thead><tr><th>Method · Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>POST /api/signup</td><td>none</td><td>create account (username, email, password)</td></tr>
+          <tr><td>POST /api/login</td><td>none</td><td>sign in with username or email + password</td></tr>
+          <tr><td>POST /api/spaces</td><td>session</td><td>create space (name, atmosphere, skin, visibility, members[])</td></tr>
+          <tr><td>POST /api/spaces/:id/join</td><td>session</td><td>join a public space</td></tr>
+          <tr><td>POST /api/spaces/:id/members</td><td>owner</td><td>add member by username</td></tr>
+          <tr><td class="m-del">DELETE /api/spaces/:id</td><td>owner</td><td>delete space + its messages</td></tr>
+          <tr><td class="m-get">GET /api/conversations/:id/messages</td><td>session</td><td>message history (ai, dm-*, space-*)</td></tr>
+          <tr><td>POST /api/conversations/:id/messages</td><td>session</td><td>send message (body, kind, meta)</td></tr>
+          <tr><td class="m-del">DELETE /api/messages/:id</td><td>author</td><td>delete one message</td></tr>
+          <tr><td>POST /api/assistant</td><td>session</td><td>Phantom AI (message, history[]) → Gemini</td></tr>
+          <tr><td class="m-get">GET /api/users/find?q=</td><td>session</td><td>find people by username</td></tr>
+          <tr><td>POST /api/contacts</td><td>session</td><td>add a contact by username</td></tr>
+          <tr><td>POST /api/profile</td><td>session</td><td>update status, tags, display_name, theme</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="realtime">&gt; REALTIME EVENTS</h2>
+      <p>Transport: Supabase Realtime over WebSocket. The web client subscribes per open conversation — no polling anywhere.</p>
+      <table class="docs-table">
+        <thead><tr><th>Event</th><th>Direction</th><th>Payload</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>messages:INSERT</td><td>server→client</td><td>message row</td><td>new message in this conversation</td></tr>
+          <tr><td>typing</td><td>broadcast</td><td>{ username }</td><td>ephemeral typing state, never stored</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="encryption">&gt; ENCRYPTION</h2>
+      <p>Today: TLS in transit, encrypted at rest inside your own Supabase project, passwords hashed with Werkzeug (scrypt). Zero trackers, zero telemetry, zero ads.</p>
+      <p>Roadmap: client-side X25519-XSalsa20-Poly1305 (libsodium) for true E2E DMs — public keys already have a column (<span style="color:var(--p-text)">profiles.public_key</span>); private keys will never leave the device.</p>
+
+      <h2 id="selfhost">&gt; SELF-HOSTING</h2>
+      <p>Deploy the Flask app anywhere (Vercel config included). Set these environment variables:</p>
+      <div class="codeblock"><span class="lang">env</span><button class="copy-btn" data-copy aria-label="Copy"><svg class="icon" style="width:12px;height:12px"><use href="#i-file"/></svg></button>gemini_api_key=        # aistudio.google.com/apikey — powers Phantom AI
+supabase_url=          # your Supabase project URL
+supabase_key=          # anon key
+flask_secret_key=      # any long random string
+PUBLIC_URL=            # https://your-domain — stabilizes OAuth redirects
+GOOGLE_CLIENT_ID=      GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=      GITHUB_CLIENT_SECRET=</div>
+      <p>OAuth: register <span style="color:var(--p-text)">PUBLIC_URL + /auth/google/callback</span> (Google Console) and <span style="color:var(--p-text)">/auth/github/callback</span> (GitHub OAuth app) as the redirect URIs.</p>
+    </div>
+  </div>
+
+  <footer class="l3-foot mono">
+    <a href="/" data-logo4>&gt; PHANTOM_</a>
+    <span style="margin-inline-start:auto;color:var(--p-text-4)">© 2026 Phantom. MIT.</span>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+  <script>
+    document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => {
+      navigator.clipboard.writeText(b.parentElement.textContent.trim()).catch(() => {});
+      b.style.color = "var(--acc-green)"; setTimeout(() => (b.style.color = ""), 900);
+    }));
+    const links = [...document.querySelectorAll(".docs-nav a")];
+    addEventListener("scroll", () => {
+      let cur = links[0];
+      links.forEach((l) => { const s = document.querySelector(l.hash); if (s && s.getBoundingClientRect().top < 120) cur = l; });
+      links.forEach((l) => l.classList.toggle("on", l === cur));
+    }, { passive: true });
+  </script>
+</body>
+</html>

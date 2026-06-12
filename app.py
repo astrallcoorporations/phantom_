@@ -27,6 +27,8 @@ SUPABASE_URL = (os.getenv("supabase_url") or os.getenv("SUPABASE_URL") or "").st
 SUPABASE_KEY = (os.getenv("supabase_key") or os.getenv("SUPABASE_KEY") or "").strip()
 GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
 GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
+GITHUB_CLIENT_ID = (os.getenv("GITHUB_CLIENT_ID") or "").strip()
+GITHUB_CLIENT_SECRET = (os.getenv("GITHUB_CLIENT_SECRET") or "").strip()
 PUBLIC_URL = (os.getenv("PUBLIC_URL") or "").strip().rstrip("/")
 
 OWNER_EMAIL = "pencil.insurance.buisness@gmail.com"
@@ -320,6 +322,8 @@ def base_context(view):
         "lang": session.get("lang", "en"),
         "ai_ready": bool(GEMINI_API_KEY),
         "sb_ready": bool(SUPABASE_URL and SUPABASE_KEY),
+        "sb_url": SUPABASE_URL,
+        "sb_anon": SUPABASE_KEY,
         "google_ready": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
         "owner_email": OWNER_EMAIL,
         "troubleshoot": TROUBLESHOOT,
@@ -335,6 +339,11 @@ def base_context(view):
 @app.route("/")
 def landing():
     return render_template("landing.html", lang=session.get("lang", "en"))
+
+
+@app.route("/docs")
+def docs():
+    return render_template("docs.html", lang=session.get("lang", "en"))
 
 
 @app.route("/auth")
@@ -599,6 +608,47 @@ def google_callback():
             handle += uuid.uuid4().hex[:4]
         profile = {"handle": handle, "display_name": info.get("name") or handle,
                    "email": email, "is_admin": handle == ADMIN_HANDLE}
+        sb_insert("profiles", profile)
+    login_as(profile)
+    return redirect(url_for("home"))
+
+
+@app.route("/auth/github")
+def github_auth():
+    if not (GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET):
+        return redirect(url_for("auth", error="GitHub sign-in needs GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in the environment."))
+    params = {"client_id": GITHUB_CLIENT_ID,
+              "redirect_uri": (PUBLIC_URL + "/auth/github/callback") if PUBLIC_URL
+              else url_for("github_callback", _external=True),
+              "scope": "read:user user:email"}
+    return redirect("https://github.com/login/oauth/authorize?" + urlencode(params))
+
+
+@app.route("/auth/github/callback")
+def github_callback():
+    import requests as rq
+    code = request.args.get("code")
+    if not code:
+        return redirect(url_for("auth", error="GitHub sign-in was cancelled."))
+    try:
+        token = rq.post("https://github.com/login/oauth/access_token",
+                        data={"client_id": GITHUB_CLIENT_ID, "client_secret": GITHUB_CLIENT_SECRET,
+                              "code": code},
+                        headers={"Accept": "application/json"}, timeout=15).json()
+        gh = rq.get("https://api.github.com/user",
+                    headers={"Authorization": "Bearer " + token["access_token"]}, timeout=15).json()
+        emails = rq.get("https://api.github.com/user/emails",
+                        headers={"Authorization": "Bearer " + token["access_token"]}, timeout=15).json()
+        email = next((e["email"] for e in emails if e.get("primary")), gh.get("email") or "")
+    except Exception:
+        return redirect(url_for("auth", error="GitHub sign-in failed — check credentials."))
+    handle = (gh.get("login") or "").lower() or ("gh" + uuid.uuid4().hex[:8])
+    profile = find_profile(email) or find_profile(handle)
+    if not profile:
+        if find_profile(handle):
+            handle += uuid.uuid4().hex[:4]
+        profile = {"handle": handle, "display_name": gh.get("name") or handle,
+                   "email": (email or "").lower() or None, "is_admin": handle == ADMIN_HANDLE}
         sb_insert("profiles", profile)
     login_as(profile)
     return redirect(url_for("home"))
