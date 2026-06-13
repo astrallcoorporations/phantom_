@@ -17,7 +17,7 @@ Open http://127.0.0.1:5000 — start at `/onboarding` for the full first-run flo
 | --- | --- |
 | `gemini_api_key` | Powers the Phantom AI assistant (aistudio.google.com/apikey) |
 | `flask_secret_key` | Flask session signing |
-| `supabase_url` / `supabase_key` | Optional cloud mirror — messages sync to your Supabase project |
+| `supabase_url` / `supabase_key` | Optional cloud mirror — messages sync to your private backend |
 
 ## Map
 
@@ -38,23 +38,23 @@ Open http://127.0.0.1:5000 — start at `/onboarding` for the full first-run flo
 ## Accounts
 
 - **Sign up** with username + email + password (hashed with Werkzeug, stored in
-  your Supabase `profiles` table), **Google** (needs `GOOGLE_CLIENT_ID` /
+  your the backend `profiles` table), **Google** (needs `GOOGLE_CLIENT_ID` /
   `GOOGLE_CLIENT_SECRET` in .env with `http://127.0.0.1:5000/auth/google/callback`
   registered), or **continue as guest**.
 - The app (`/app/*`) requires a session; guests get the full local experience.
 - **Admin** is the handle `totoandhenry` — first sign-in password is
   `phantom-admin` (change it after claiming). Admins get a badge.
-- **Add people by username** on the People page; contacts persist in Supabase
+- **Add people by username** on the People page; contacts persist in the backend
   and each contact gets a direct conversation.
 
 ## Built in
 
 - **Phantom AI** — Gemini-backed assistant (`gemini-2.5-flash` with automatic
   fallback chain), chat history kept on-device, typing indicator, graceful errors.
-- **Supabase sync** — schema lives in your project (`profiles`, `spaces`,
+- **the backend sync** — schema lives in your project (`profiles`, `spaces`,
   `conversations`, `messages`, `moments`, RLS on). Messages mirror on send.
   Dev-phase note: anon write policies are permissive; tighten to `auth.uid()`
-  checks before going multi-user (see Supabase linter 0024).
+  checks before going multi-user (see the backend linter 0024).
 - **localStorage backend** — messages, drafts, reactions, pins, joins, profile,
   theme, every preference. Device is the source of truth.
 - **Onboarding** — 3 quiet steps; the chosen world re-skins the entire app.

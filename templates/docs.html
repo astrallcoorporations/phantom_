@@ -72,7 +72,7 @@ $ cd phantom_ && pip install -r requirements.txt</div>
       </table>
 
       <h2 id="realtime">&gt; REALTIME EVENTS</h2>
-      <p>Transport: Supabase Realtime over WebSocket. The web client subscribes per open conversation — no polling anywhere.</p>
+      <p>Transport: realtime over WebSocket. The web client subscribes per open conversation — no polling anywhere.</p>
       <table class="docs-table">
         <thead><tr><th>Event</th><th>Direction</th><th>Payload</th><th>Description</th></tr></thead>
         <tbody>
@@ -82,13 +82,13 @@ $ cd phantom_ && pip install -r requirements.txt</div>
       </table>
 
       <h2 id="encryption">&gt; ENCRYPTION</h2>
-      <p>Today: TLS in transit, encrypted at rest inside your own Supabase project, passwords hashed with Werkzeug (scrypt). Zero trackers, zero telemetry, zero ads.</p>
+      <p>Today: TLS in transit, encrypted at rest in your own private database, passwords hashed with Werkzeug (scrypt). Zero trackers, zero telemetry, zero ads.</p>
       <p>Roadmap: client-side X25519-XSalsa20-Poly1305 (libsodium) for true E2E DMs — public keys already have a column (<span style="color:var(--p-text)">profiles.public_key</span>); private keys will never leave the device.</p>
 
       <h2 id="selfhost">&gt; SELF-HOSTING</h2>
       <p>Deploy the Flask app anywhere (Vercel config included). Set these environment variables:</p>
       <div class="codeblock"><span class="lang">env</span><button class="copy-btn" data-copy aria-label="Copy"><svg class="icon" style="width:12px;height:12px"><use href="#i-file"/></svg></button>gemini_api_key=        # aistudio.google.com/apikey — powers Phantom AI
-supabase_url=          # your Supabase project URL
+supabase_url=          # your database URL
 supabase_key=          # anon key
 flask_secret_key=      # any long random string
 PUBLIC_URL=            # https://your-domain — stabilizes OAuth redirects
@@ -100,7 +100,7 @@ GITHUB_CLIENT_ID=      GITHUB_CLIENT_SECRET=</div>
 
   <footer class="l3-foot mono">
     <a href="/" data-logo4>&gt; PHANTOM_</a>
-    <span style="margin-inline-start:auto;color:var(--p-text-4)">© 2026 Phantom. MIT.</span>
+    <span style="margin-inline-start:auto;color:var(--p-text-4)">© 2026 Phantom. All rights reserved.</span>
   </footer>
 
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
