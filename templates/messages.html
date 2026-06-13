@@ -80,8 +80,18 @@
           <svg class="icon"><use href="#i-people"/></svg>
         </button>
         {% endif %}
-        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Start call"><svg class="icon"><use href="#i-calls"/></svg></a>
-        <a class="icon-btn" href="{{ url_for('calls_view') }}" aria-label="Video call"><svg class="icon"><use href="#i-video"/></svg></a>
+        <button class="icon-btn" id="btn-voice-call" aria-label="Voice call" title="Voice call"
+                data-conv="{{ active.id }}" data-title="{{ active.title }}"
+                data-peers="{{ active.peer if active.type == 'dm' else '' }}"
+                data-type="voice">
+          <svg class="icon"><use href="#i-calls"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-video-call" aria-label="Video call" title="Video call"
+                data-conv="{{ active.id }}" data-title="{{ active.title }}"
+                data-peers="{{ active.peer if active.type == 'dm' else '' }}"
+                data-type="video">
+          <svg class="icon"><use href="#i-video"/></svg>
+        </button>
         <div class="menu-wrap">
           <button class="icon-btn" id="conv-menu-btn" aria-label="Conversation options" aria-haspopup="true" aria-expanded="false">
             <svg class="icon" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
@@ -184,8 +194,18 @@
     {% if active.peer %}
     <a class="info-btn" href="{{ url_for('profile_view', handle=active.peer) }}"><svg class="icon"><use href="#i-user"/></svg><span>Profile</span></a>
     {% endif %}
-    <a class="info-btn" href="{{ url_for('calls_view') }}"><svg class="icon"><use href="#i-calls"/></svg><span>Voice</span></a>
-    <a class="info-btn" href="{{ url_for('calls_view') }}"><svg class="icon"><use href="#i-video"/></svg><span>Video</span></a>
+    <button class="info-btn" id="info-voice-call"
+            data-conv="{{ active.id }}" data-title="{{ active.title }}"
+            data-peers="{{ active.peer if active.type == 'dm' else '' }}"
+            data-type="voice">
+      <svg class="icon"><use href="#i-calls"/></svg><span>Voice</span>
+    </button>
+    <button class="info-btn" id="info-video-call"
+            data-conv="{{ active.id }}" data-title="{{ active.title }}"
+            data-peers="{{ active.peer if active.type == 'dm' else '' }}"
+            data-type="video">
+      <svg class="icon"><use href="#i-video"/></svg><span>Video</span>
+    </button>
     <button class="info-btn" data-cmdk-open><svg class="icon"><use href="#i-search"/></svg><span>Search</span></button>
   </div>
 
@@ -315,3 +335,21 @@
 </script>
 {% endif %}
 {% endblock %}
+
+<script>
+(function () {
+  // Wire all call buttons → /app/calls with query params
+  function launchCall(btn) {
+    const conv  = btn.dataset.conv  || "";
+    const type  = btn.dataset.type  || "voice";
+    const title = btn.dataset.title || conv;
+    const peers = btn.dataset.peers || "";
+    window.location.href =
+      `/app/calls?call=${encodeURIComponent(conv)}&type=${type}&title=${encodeURIComponent(title)}&peers=${encodeURIComponent(peers)}`;
+  }
+  ["btn-voice-call","btn-video-call","info-voice-call","info-video-call"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", () => launchCall(el));
+  });
+})();
+</script>

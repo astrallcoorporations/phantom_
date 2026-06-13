@@ -495,7 +495,62 @@ def people_view():
 
 @app.route("/app/calls")
 def calls_view():
-    return render_template("calls.html", **base_context("calls"))
+    ctx = base_context("calls")
+    return render_template("calls.html", **ctx)
+
+
+# ---------------------------------------------------------------------------
+# Call signaling — Supabase Realtime handles the WebRTC messages client-side.
+# These endpoints let the server ring a specific user via their personal channel,
+# and log call history for the sidebar.
+# ---------------------------------------------------------------------------
+
+@app.post("/api/calls/ring")
+def api_ring():
+    """
+    Signal a call-offer to a specific peer via their personal Supabase channel.
+    The caller's browser does WebRTC directly; this is just the ring notification.
+    Body: { to, convId, callType, offer }
+    """
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    data = request.json or {}
+    to       = (data.get("to") or "").strip().lstrip("@")
+    conv_id  = (data.get("convId") or "").strip()
+    call_type = data.get("callType", "voice")
+    if not to or not conv_id:
+        return jsonify({"error": "missing to or convId"}), 400
+    me = user_handle(user)
+    # Log to call history table if available
+    try:
+        sb().table("call_history").insert({
+            "caller": me, "callee": to, "conv_id": conv_id,
+            "call_type": call_type, "status": "ringing",
+        }).execute()
+    except Exception:
+        pass
+    # The actual WebRTC offer is passed client-side via Supabase Realtime broadcast.
+    return jsonify({"ok": True, "from": me})
+
+
+@app.post("/api/calls/end")
+def api_call_end():
+    """Log a call as ended (optional — clients handle hang-up via signaling)."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    data   = request.json or {}
+    conv_id = (data.get("convId") or "").strip()
+    me      = user_handle(user)
+    try:
+        sb().table("call_history") \
+            .update({"status": "ended", "ended_at": datetime.utcnow().isoformat()}) \
+            .eq("caller", me).eq("conv_id", conv_id).eq("status", "ringing") \
+            .execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 @app.route("/app/media")
@@ -1001,6 +1056,29 @@ def assistant():
             app.logger.warning("gemini %s failed: %s", model, exc)
     return jsonify({"reply": "Gemini is busy right now — give it a moment and ask again.",
                     "offline": True, "error": str(last_error)[:200]})
+
+
+@app.get("/api/ice")
+def api_ice():
+    import requests as rq
+    dom = (os.getenv("METERED_DOMAIN") or "").strip()
+    key = (os.getenv("METERED_API_KEY") or "").strip()
+    ice = [{"urls": "stun:stun.l.google.com:19302"},
+           {"urls": "stun:stun1.l.google.com:19302"}]
+    if dom and key:
+        try:
+            r = rq.get(f"https://{dom}/api/v1/turn/credentials?apiKey={key}", timeout=8).json()
+            if isinstance(r, list):
+                return jsonify({"iceServers": r})
+        except Exception:
+            pass
+    # free public Open Relay (no key) as the default TURN
+    ice += [
+        {"urls": "turn:openrelay.metered.ca:80", "username": "openrelayproject", "credential": "openrelayproject"},
+        {"urls": "turn:openrelay.metered.ca:443", "username": "openrelayproject", "credential": "openrelayproject"},
+        {"urls": "turn:openrelay.metered.ca:443?transport=tcp", "username": "openrelayproject", "credential": "openrelayproject"},
+    ]
+    return jsonify({"iceServers": ice})
 
 
 @app.post("/api/ghost")

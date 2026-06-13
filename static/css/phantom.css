@@ -2020,3 +2020,146 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
 }
 .sys-note .sn-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 .sys-note .sn-wait { color: var(--p-text-4); font-size: 12px; margin-top: 4px; }
+
+/* ==========================================================================
+   CALLS — WebRTC room, idle state, incoming toast
+   ========================================================================== */
+
+/* ── idle screen ─────────────────────────────────────────────────────────── */
+.call-idle {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  height: 100%; width: 100%; overflow: hidden;
+}
+.call-stage {
+  position: relative; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; gap: 18px; text-align: center; padding: 40px 24px;
+}
+.call-avatar-lg {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: var(--p-panel-3); border: 1px solid var(--p-line);
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 28px; color: var(--p-text-3);
+}
+
+/* ── active call room ────────────────────────────────────────────────────── */
+.call-room {
+  position: relative; display: flex; flex-direction: column;
+  height: 100%; width: 100%; overflow: hidden; background: #050507;
+}
+.call-room-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 20px; border-bottom: 1px solid var(--p-line);
+  background: var(--p-panel); backdrop-filter: blur(var(--blur));
+  z-index: 10; flex: none;
+}
+.call-room-title { font-size: 12px; letter-spacing: 0.1em; color: var(--p-text); }
+.call-timer {
+  font-size: 12px; color: var(--p-text-4); letter-spacing: 0.08em;
+  margin-inline-start: auto;
+}
+
+/* ── video grid ──────────────────────────────────────────────────────────── */
+.call-grid {
+  flex: 1; display: grid; overflow: hidden;
+  gap: 3px; background: #050507; padding: 3px;
+  align-items: stretch;
+}
+/* 1 remote (2 total tiles) */
+.call-grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
+/* 3 tiles */
+.call-grid[data-count="3"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.call-grid[data-count="3"] .call-tile--local { grid-row: 1 / 3; }
+/* 4+ tiles → auto wrap */
+.call-grid[data-count="4"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.call-grid:not([data-count="1"]):not([data-count="2"]):not([data-count="3"]):not([data-count="4"]) {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+/* single tile (no remote yet) */
+.call-grid[data-count="1"] { grid-template-columns: 1fr; }
+
+.call-tile {
+  position: relative; background: #0a0a0d;
+  border-radius: 10px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 120px;
+}
+.call-tile video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover;
+}
+.call-tile-avatar {
+  font-family: var(--font-mono); font-size: 32px; color: var(--p-text-3);
+  z-index: 1; pointer-events: none;
+}
+.call-tile-label {
+  position: absolute; bottom: 10px; left: 12px; z-index: 2;
+  font-size: 11px; letter-spacing: 0.08em; color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.45); padding: 3px 8px; border-radius: 5px;
+  backdrop-filter: blur(6px);
+}
+.call-tile-muted {
+  position: absolute; bottom: 10px; right: 12px; z-index: 2;
+  background: var(--acc-red); border-radius: 50%;
+  width: 26px; height: 26px; display: grid; place-items: center; color: #fff;
+}
+.call-tile--local { border: 1px solid var(--p-line); }
+
+/* ── controls bar ────────────────────────────────────────────────────────── */
+.call-controls-bar {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 18px 24px; background: var(--p-panel);
+  backdrop-filter: blur(var(--blur)); border-top: 1px solid var(--p-line);
+  flex: none; z-index: 10;
+}
+.call-ctrl-btn {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--p-panel-3); border: 1px solid var(--p-line);
+  display: grid; place-items: center; cursor: pointer; color: var(--p-text);
+  transition: all var(--dur) var(--ease);
+}
+.call-ctrl-btn:hover { background: var(--p-panel-hi); }
+.call-ctrl-btn.active-off {
+  background: var(--p-danger-bg); border-color: var(--acc-red); color: var(--acc-red);
+}
+.call-ctrl-btn.active-on {
+  background: var(--p-accent-soft); border-color: var(--acc-blue); color: var(--acc-blue);
+}
+.call-ctrl-btn--end {
+  background: var(--acc-red); border-color: transparent; color: #fff; width: 58px; height: 58px;
+}
+.call-ctrl-btn--end:hover { filter: brightness(1.12); }
+.call-ctrl-btn--answer {
+  background: var(--acc-green); border-color: transparent; color: #fff;
+}
+.call-ctrl-btn--answer:hover { filter: brightness(1.12); }
+
+/* ── status bar ──────────────────────────────────────────────────────────── */
+.call-status-bar {
+  text-align: center; font-size: 10px; letter-spacing: 0.12em;
+  color: var(--p-text-4); padding: 8px; border-top: 1px solid var(--p-line);
+  flex: none;
+}
+
+/* ── incoming call toast ─────────────────────────────────────────────────── */
+.call-incoming {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+  z-index: 200; width: clamp(280px, 90vw, 400px);
+}
+.call-incoming-inner {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  background: var(--p-panel-hi); backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--p-line); border-radius: var(--r-lg);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  animation: call-slide-up 0.25s var(--ease);
+}
+@keyframes call-slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.call-incoming-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--p-panel-3); border: 1px solid var(--p-line);
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 14px; color: var(--p-text); flex: none;
+}
+.call-incoming-inner > div { flex: 1; min-width: 0; }
