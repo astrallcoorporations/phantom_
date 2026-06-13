@@ -295,14 +295,23 @@
     // announce ourselves to the channel so other members can call back
     signal({ type: "call-joined", convId, callType });
 
-    // for DMs — send the offer directly
-    if (participants && participants.length) {
-      for (const p of participants) {
-        await callPeer(p);
-      }
-    }
+    // ring each participant on their personal channel; we send the WebRTC
+    // offer only once they join the conversation channel (call-joined).
+    (participants || []).forEach((p) => ringPeer(p, convId, callType, title));
 
     showRoom(title);
+  }
+
+  // ─── ring a peer on their personal channel ───────────────────────────────
+  function ringPeer(peer, convId, type, title) {
+    const ch = sb.channel("call-ring:" + peer);
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        ch.send({ type: "broadcast", event: "signal",
+                  payload: { type: "call-offer", from: ME, convId, callType: type, title } });
+        setTimeout(() => sb.removeChannel(ch), 1800);
+      }
+    });
   }
 
   // ─── answer incoming ──────────────────────────────────────────────────────
@@ -318,36 +327,11 @@
     $incoming.hidden = false;
   }
 
-  $btnAnswer.addEventListener("click", async () => {
+  $btnAnswer.addEventListener("click", () => {
     $incoming.hidden = true;
-    const { from, offer, convId, type } = pendingOffer || {};
-    if (!from) return;
-    callType      = type || "voice";
-    currentConvId = convId;
-
-    await loadIce();
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === "video" ? { width: 1280, height: 720 } : false,
-      });
-    } catch (err) {
-      alert("Could not access media: " + err.message); return;
-    }
-
-    $localVideo.srcObject = localStream;
-    if (callType === "video") $localVideo.hidden = false;
-
-    joinSignalChannel(convId);
-    signal({ type: "call-joined", convId, callType });
-
-    const pc = makePeer(from, false);
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const ans = await pc.createAnswer();
-    await pc.setLocalDescription(ans);
-    signal({ type: "answer", to: from, answer: ans });
-
-    showRoom(from);
+    const p = pendingOffer; pendingOffer = null;
+    if (!p) return;
+    startCall(p.convId, p.type, p.from, []);   // join → announce → they offer us
   });
 
   $btnDecline.addEventListener("click", () => {
@@ -370,6 +354,7 @@
 
   function tickTimer() {
     const s = Math.floor((Date.now() - callStartTs) / 1000);
+    if (s >= 5400) { setStatus("90-MIN LIMIT REACHED"); hangup(); return; }
     const m = String(Math.floor(s / 60)).padStart(2, "0");
     const sec = String(s % 60).padStart(2, "0");
     $timer.textContent = m + ":" + sec;

@@ -83,14 +83,36 @@ def find_profile(identity):
     ident = (identity or "").strip().lstrip("@").lower()
     if not ident:
         return None
+    from flask import g
+    cache = getattr(g, "_pcache", None)
+    if cache is None:
+        cache = g._pcache = {}
+    if ident in cache:
+        return cache[ident]
+    found = None
     for col in ("handle", "email"):
         try:
             r = c.table("profiles").select("*").eq(col, ident).limit(1).execute()
             if r.data:
-                return r.data[0]
+                found = r.data[0]
+                break
         except Exception:
             continue
-    return None
+    cache[ident] = found
+    if found:
+        cache[found.get("handle")] = found
+    return found
+
+
+def profiles_by_handles(handles):
+    """One query for many handles -> {handle: profile}."""
+    handles = [h for h in {h for h in handles} if h]
+    if not handles:
+        return {}
+    rows = sb_rows(lambda c: c.table("profiles")
+                   .select("handle, display_name, public_key, status, is_admin, is_guest")
+                   .in_("handle", handles))
+    return {r["handle"]: r for r in rows}
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +244,13 @@ def user_spaces(handle):
     ids = [m["space_id"] for m in mem]
     roles = {m["space_id"]: m["role"] for m in mem}
     rows = sb_rows(lambda c: c.table("spaces").select("*").in_("id", ids))
+    allmem = sb_rows(lambda c: c.table("space_members").select("space_id").in_("space_id", ids))
+    counts = {}
+    for m in allmem:
+        counts[m["space_id"]] = counts.get(m["space_id"], 0) + 1
     for r in rows:
         r["role"] = roles.get(r["id"], "member")
-        r["members"] = space_member_count(r["id"])
+        r["members"] = counts.get(r["id"], 0)
     rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     return rows
 
@@ -333,28 +359,29 @@ def user_dms(handle):
     seen, out = {}, []
     rows = sb_rows(lambda c: c.table("messages").select("conversation_id, body, kind, author, created_at, meta")
                    .like("conversation_id", "dm:%").order("created_at", desc=True).limit(400))
+    pending = []
     for r in rows:
         parts = r["conversation_id"][3:].split("__")
-        if handle not in parts:
+        if handle not in parts or len(parts) != 2:
             continue
         other = parts[0] if parts[1] == handle else parts[1]
         if other in seen:
             continue
         seen[other] = True
-        prof = find_profile(other)
         last = "(encrypted)" if (r.get("meta") or {}).get("e2e") else (
-            ("file: " + r["body"]) if r.get("kind") in ("file", "image") else r["body"])
-        out.append({"handle": other, "name": (prof or {}).get("display_name") or other,
-                    "last": last[:48], "ts": r.get("created_at", "")})
-    # contacts with no messages yet
+            ("file: " + r["body"]) if r.get("kind") in ("file", "image", "system") else r["body"])
+        pending.append({"handle": other, "last": last[:48], "ts": r.get("created_at", "")})
     crows = sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", handle))
     for cr in crows:
         h = cr["contact"]
         if h in seen:
             continue
         seen[h] = True
-        prof = find_profile(h)
-        out.append({"handle": h, "name": (prof or {}).get("display_name") or h, "last": "", "ts": ""})
+        pending.append({"handle": h, "last": "", "ts": ""})
+    pmap = profiles_by_handles([d["handle"] for d in pending])
+    for d in pending:
+        d["name"] = (pmap.get(d["handle"]) or {}).get("display_name") or d["handle"]
+        out.append(d)
     out.sort(key=lambda d: d["ts"], reverse=True)
     return out
 
@@ -374,7 +401,7 @@ def base_context(view):
         "atmospheres": ATMOSPHERES,
         "skins": SKINS,
         "spaces": spaces,
-        "dms": user_dms(user_handle(user)) if current_user() else [],
+        "dms": user_dms(user_handle(user)) if (current_user() and view in ("messages", "home")) else [],
         "conversations": [{"id": "ai", "type": "ai", "title": "Phantom AI",
                            "sub": "your private assistant", "atmosphere": "night"}],
         "ghost": session.get("ghost", False),

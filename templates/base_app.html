@@ -16,10 +16,14 @@
 
   <div class="shell">
     <nav class="rail panel" aria-label="Primary">
-      <a class="rail-brand mono" href="{{ url_for('home') }}">
-        <span data-logo4>&gt; PHANTOM_</span>
-        <span class="presence presence--online" style="margin-inline-start:auto" role="img" aria-label="connected"></span>
-      </a>
+      <div class="rail-brand-row">
+        <a class="rail-brand mono" href="{{ url_for('home') }}">
+          <span data-logo4>&gt; PHANTOM_</span>
+        </a>
+        <button class="icon-btn rail-toggle" id="rail-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+          <svg class="icon" style="width:14px;height:14px"><use href="#i-chevron"/></svg>
+        </button>
+      </div>
 
       <button class="rail-search" data-cmdk-open aria-label="Open command center">
         <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-search"/></svg>

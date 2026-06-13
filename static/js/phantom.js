@@ -908,6 +908,14 @@
     }
 
     document.querySelectorAll(".sys-note[data-sys='clear_request']").forEach((el) => wireSysNote(el, convId));
+    ["btn-voice-call", "btn-video-call"].forEach((id) => {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener("click", () => {
+        const q = new URLSearchParams({ call: b.dataset.conv, type: b.dataset.type || "voice",
+          title: b.dataset.title || b.dataset.conv, peers: b.dataset.peers || "" });
+        window.location.href = "/app/calls?" + q.toString();
+      });
+    });
     initConvMenu();
     scroll.scrollTop = scroll.scrollHeight;
   }
@@ -1754,6 +1762,8 @@
   document.addEventListener("DOMContentLoaded", () => {
     initLogo4();
     initKeys();
+    initRing();
+    initRailToggle();
     applyLanguage(lang, false);
     applyGhost(ghost, false);
     applyPrefs();
@@ -1778,6 +1788,44 @@
     document.querySelectorAll(".lang-btn[data-lang]").forEach((el) =>
       el.addEventListener("click", () => applyLanguage(el.dataset.lang, true)));
   });
+
+  function showRingToast(p) {
+    if (document.getElementById("ring-toast")) return;
+    const t = document.createElement("div");
+    t.id = "ring-toast"; t.className = "ring-toast";
+    t.innerHTML = '<span class="ring-av"></span><div class="ring-meta"><b></b><i></i></div>' +
+      '<button class="btn btn--sm btn--solid" data-ans>Answer</button><button class="btn btn--sm" data-dec>Dismiss</button>';
+    t.querySelector(".ring-av").textContent = (p.from || "?")[0].toLowerCase() + "_";
+    t.querySelector("b").textContent = p.title || p.from;
+    t.querySelector("i").textContent = (p.callType === "video" ? "video" : "voice") + " call · @" + p.from;
+    t.querySelector("[data-ans]").addEventListener("click", () => {
+      location.href = "/app/calls?call=" + encodeURIComponent(p.convId) + "&type=" + (p.callType || "voice") + "&title=" + encodeURIComponent(p.title || p.from);
+    });
+    t.querySelector("[data-dec]").addEventListener("click", () => t.remove());
+    document.body.appendChild(t);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 30000);
+  }
+  function initRing() {
+    if (!window.sbClient) return;
+    const me = document.body.dataset.me;
+    if (!me || location.pathname.replace(/\/$/, "").endsWith("/app/calls")) return;
+    window.sbClient.channel("call-ring:" + me, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "signal" }, ({ payload }) => {
+        if (payload && payload.type === "call-offer") showRingToast(payload);
+      }).subscribe();
+  }
+
+  function initRailToggle() {
+    const shell = document.querySelector(".shell");
+    if (!shell) return;
+    if (store.getPref("railCollapsed", false)) shell.classList.add("rail-collapsed");
+    const btn = document.getElementById("rail-toggle");
+    if (btn) btn.addEventListener("click", () => {
+      const c = !shell.classList.contains("rail-collapsed");
+      shell.classList.toggle("rail-collapsed", c);
+      store.setPref("railCollapsed", c);
+    });
+  }
 
   window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store, e2eDecrypt, fingerprintOf, phlog };
 
