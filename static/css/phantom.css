@@ -1312,13 +1312,18 @@ body.ghost-on .typing, body.ghost-on .receipt { visibility: hidden; }
 .l3-btn--solid { background: var(--p-text); color: #060607; border-color: transparent; }
 .l3-btn--solid:hover { background: #d9d9de; color: #060607; }
 
-/* hero — single flow column with the moon as an absolute top-right backdrop */
+/* hero — desktop two-column layout; collapses to single-column on small screens */
 .l3-hero {
-  position: relative; display: flex; flex-direction: column; justify-content: center;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 50px;
+  align-items: center;
   min-height: min(84vh, 820px);
   max-width: 1280px; margin: 0 auto; padding: 40px clamp(20px, 5vw, 64px) 80px;
 }
 .l3-hero-copy { position: relative; z-index: 2; max-width: 600px; }
+.termcard { justify-self: end; }
 .l3-hero h1 {
   font-size: clamp(38px, 5.4vw, 64px); font-weight: 400;
   color: var(--p-text); line-height: 1.18; letter-spacing: -0.01em;

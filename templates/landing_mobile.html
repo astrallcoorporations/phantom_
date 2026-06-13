@@ -18,34 +18,36 @@
   </header>
 
   <main class="carousel" id="carousel" role="main">
-    <section class="slide" id="slide-0">
-      <div class="hero">
-        <h1>Encrypted by default.</h1>
-        <p class="muted">Auditable by design. Private conversations, now mobile-first.</p>
-        <a class="cta" href="{{ url_for('auth') }}">Get Phantom — Sign in</a>
-      </div>
-    </section>
+    <div class="slides" id="slides">
+      <section class="slide" id="slide-0">
+        <div class="hero">
+          <h1>Encrypted by default.</h1>
+          <p class="muted">Auditable by design. Private conversations, now mobile-first.</p>
+          <a class="cta" href="{{ url_for('auth') }}">Get Phantom — Sign in</a>
+        </div>
+      </section>
 
-    <section class="slide" id="slide-1">
-      <div class="panel">
-        <h2>Built for real conversations</h2>
-        <p>End-to-end encrypted messaging and calling that feels instant and private.</p>
-      </div>
-    </section>
+      <section class="slide" id="slide-1">
+        <div class="panel">
+          <h2>Built for real conversations</h2>
+          <p>End-to-end encrypted messaging and calling that feels instant and private.</p>
+        </div>
+      </section>
 
-    <section class="slide" id="slide-2">
-      <div class="panel">
-        <h2>Self-hostable</h2>
-        <p>Run your own server, keep your keys — deploy anywhere.</p>
-      </div>
-    </section>
+      <section class="slide" id="slide-2">
+        <div class="panel">
+          <h2>Self-hostable</h2>
+          <p>Run your own server, keep your keys — deploy anywhere.</p>
+        </div>
+      </section>
 
-    <section class="slide" id="slide-3">
-      <div class="panel final">
-        <h2>Start now</h2>
-        <a class="cta" href="{{ url_for('auth') }}">Sign in</a>
-      </div>
-    </section>
+      <section class="slide" id="slide-3">
+        <div class="panel final">
+          <h2>Start now</h2>
+          <a class="cta" href="{{ url_for('auth') }}">Sign in</a>
+        </div>
+      </section>
+    </div>
   </main>
 
   <nav class="pager" id="pager" aria-hidden="false">
