@@ -11,3 +11,6 @@ build/
 phantom-tauri/node_modules/
 phantom-tauri/src-tauri/target/
 phantom-tauri/dist/
+
+.vercel
+.env*

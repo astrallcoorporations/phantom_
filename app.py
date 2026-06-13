@@ -17,6 +17,7 @@ from urllib.parse import urlencode
 from dotenv import load_dotenv
 from flask import (Flask, g, jsonify, redirect, render_template, request,
                    session, url_for)
+import re
 try:
     from flask_compress import Compress
 except ImportError:
@@ -485,6 +486,11 @@ def base_context(view):
 
 @app.route("/")
 def landing():
+    ua = (request.headers.get('User-Agent') or '')
+    mobile_re = re.compile(r'Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini', re.I)
+    if mobile_re.search(ua):
+        return render_template("landing_mobile.html", lang=session.get("lang", "en"),
+                               user=current_user())
     return render_template("landing.html", lang=session.get("lang", "en"),
                            user=current_user())
 

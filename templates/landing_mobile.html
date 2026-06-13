@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Phantom — Private chat</title>
+  <meta name="description" content="Private, encrypted messaging — mobile-first experience.">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing-mobile.css') }}">
+  <link rel="manifest" href="/manifest.webmanifest">
+</head>
+<body class="mobile-landing">
+  <header class="mobile-head">
+    <div class="brand">&gt; PHANTOM_</div>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('auth') }}">Sign in</a>
+      <a class="btn ghost" href="/app">Open web app</a>
+    </div>
+  </header>
+
+  <main class="carousel" id="carousel" role="main">
+    <section class="slide" id="slide-0">
+      <div class="hero">
+        <h1>Encrypted by default.</h1>
+        <p class="muted">Auditable by design. Private conversations, now mobile-first.</p>
+        <a class="cta" href="{{ url_for('auth') }}">Get Phantom — Sign in</a>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-1">
+      <div class="panel">
+        <h2>Built for real conversations</h2>
+        <p>End-to-end encrypted messaging and calling that feels instant and private.</p>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-2">
+      <div class="panel">
+        <h2>Self-hostable</h2>
+        <p>Run your own server, keep your keys — deploy anywhere.</p>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-3">
+      <div class="panel final">
+        <h2>Start now</h2>
+        <a class="cta" href="{{ url_for('auth') }}">Sign in</a>
+      </div>
+    </section>
+  </main>
+
+  <nav class="pager" id="pager" aria-hidden="false">
+    <button class="dot active" data-index="0" aria-label="Slide 1"></button>
+    <button class="dot" data-index="1" aria-label="Slide 2"></button>
+    <button class="dot" data-index="2" aria-label="Slide 3"></button>
+    <button class="dot" data-index="3" aria-label="Slide 4"></button>
+  </nav>
+
+  <script src="{{ url_for('static', filename='js/landing-mobile.js') }}"></script>
+</body>
+</html>
