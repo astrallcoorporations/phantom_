@@ -15,8 +15,12 @@ from datetime import datetime
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
-from flask import (Flask, jsonify, redirect, render_template, request,
+from flask import (Flask, g, jsonify, redirect, render_template, request,
                    session, url_for)
+try:
+    from flask_compress import Compress
+except ImportError:
+    Compress = None
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -37,6 +41,11 @@ ADMIN_FIRST_PASSWORD = "phantom-admin"
 
 app = Flask(__name__)
 app.secret_key = (os.getenv("flask_secret_key") or "").strip() or "phantom-dev-key"
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 31536000
+app.config["JSON_SORT_KEYS"] = False
+app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
+if Compress:
+    Compress(app)
 # Behind Vercel's proxy — trust the forwarded host/proto so OAuth redirects
 # and url_for(_external=True) build https://<your-domain> correctly.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
@@ -83,7 +92,6 @@ def find_profile(identity):
     ident = (identity or "").strip().lstrip("@").lower()
     if not ident:
         return None
-    from flask import g
     cache = getattr(g, "_pcache", None)
     if cache is None:
         cache = g._pcache = {}
@@ -102,6 +110,43 @@ def find_profile(identity):
     if found:
         cache[found.get("handle")] = found
     return found
+
+
+def _load_space_members(space_ids):
+    cache = getattr(g, "_space_member_sets", {})
+    if not isinstance(space_ids, (list, tuple, set)):
+        space_ids = [space_ids]
+    missing = [sid for sid in space_ids if sid and sid not in cache]
+    if missing:
+        rows = sb_rows(lambda c: c.table("space_members")
+                       .select("space_id, handle").in_("space_id", missing))
+        for sid in missing:
+            cache[sid] = set()
+        for r in rows:
+            cache.setdefault(r["space_id"], set()).add(r["handle"])
+        g._space_member_sets = cache
+    return cache
+
+
+def space_member_count(space_id):
+    return len(_load_space_members(space_id).get(space_id, set()))
+
+
+def is_member(space_id, handle):
+    if not handle:
+        return False
+    return handle in _load_space_members(space_id).get(space_id, set())
+
+
+def get_space(space_id):
+    cache = getattr(g, "_space_cache", {})
+    if space_id in cache:
+        return cache[space_id]
+    rows = sb_rows(lambda c: c.table("spaces").select("*").eq("id", space_id).limit(1))
+    space = rows[0] if rows else None
+    cache[space_id] = space
+    g._space_cache = cache
+    return space
 
 
 def profiles_by_handles(handles):
@@ -215,6 +260,10 @@ def _cache_static(resp):
             resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"   # heavy, stable assets
         else:
             resp.headers["Cache-Control"] = "public, max-age=300"                   # css/js: short, revalidate
+    elif p in ("/", "/docs", "/download"):
+        resp.headers["Cache-Control"] = "public, max-age=300"
+    elif p in ("/manifest.webmanifest", "/.well-known/assetlinks.json"):
+        resp.headers["Cache-Control"] = "public, max-age=86400"  # stable manifest links
     return resp
 
 
@@ -270,10 +319,11 @@ def public_spaces(exclude_handle=None, limit=12):
     rows = sb_rows(lambda c: c.table("spaces").select("*").eq("visibility", "public")
                    .order("created_at", desc=True).limit(limit))
     out = []
+    member_sets = _load_space_members([r["id"] for r in rows])
     for r in rows:
-        if exclude_handle and is_member(r["id"], exclude_handle):
+        if exclude_handle and exclude_handle in member_sets.get(r["id"], set()):
             continue
-        r["members"] = space_member_count(r["id"])
+        r["members"] = len(member_sets.get(r["id"], set()))
         out.append(r)
     return out
 
@@ -345,9 +395,9 @@ def load_messages(sid, me):
             "kind": r.get("kind") or "text", "meta": meta,
             "mine": (r["author"] == me) or (r["author"] == "me"),
         })
-    for mid in expired:  # ghost messages burn on read
+    if expired:  # ghost messages burn on read
         try:
-            sb().table("messages").delete().eq("id", mid).execute()
+            sb().table("messages").delete().in_("id", expired).execute()
         except Exception:
             pass
     return out
