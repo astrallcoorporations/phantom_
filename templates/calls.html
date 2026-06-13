@@ -199,11 +199,11 @@
   }
 
   // ─── signaling via Supabase Realtime broadcast ────────────────────────────
-  function joinSignalChannel(convId) {
+  function joinSignalChannel(convId, onReady) {
     if (callChannel) { sb.removeChannel(callChannel); callChannel = null; }
     callChannel = sb.channel("call:" + convId, { config: { broadcast: { self: false } } })
       .on("broadcast", { event: "signal" }, ({ payload }) => onSignal(payload))
-      .subscribe();
+      .subscribe((status) => { if (status === "SUBSCRIBED" && onReady) onReady(); });
   }
 
   function signal(payload) {
@@ -222,9 +222,9 @@
       return;
     }
     if (type === "call-joined") {
-      // a new peer joined our ongoing call — initiate to them
-      if (currentConvId && $room && !$room.hidden) {
-        await callPeer(from, false);
+      // a new peer joined our call — we (the existing member) send them the offer
+      if (currentConvId && $room && !$room.hidden && !peers[from]) {
+        await callPeer(from, true);
       }
       return;
     }
@@ -290,10 +290,8 @@
       $localVideo.hidden = false;
     }
 
-    joinSignalChannel(convId);
-
-    // announce ourselves to the channel so other members can call back
-    signal({ type: "call-joined", convId, callType });
+    // announce ourselves only once the signaling channel is actually subscribed
+    joinSignalChannel(convId, () => signal({ type: "call-joined", convId, callType }));
 
     // ring each participant on their personal channel; we send the WebRTC
     // offer only once they join the conversation channel (call-joined).
