@@ -3,90 +3,165 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>phantom_ — set up your space</title>
-  <script>try{document.documentElement.dataset.skin=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark"}catch(e){}</script>
+  <title>phantom_ — welcome</title>
+  <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
 </head>
-<body class="landing">
+<body class="landing land3">
   {% include "_icons.html" %}
-  <div class="atmosphere atm-moon-horizon" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
 
   <div class="auth-wrap">
-    <main class="auth-card panel ob-card" id="onboarding" aria-label="Set up phantom" style="width:min(460px,94vw)">
-
+    <main class="auth-card panel ob2-card" id="ob2" aria-label="Welcome to phantom">
       <div class="ob-dots" aria-hidden="true">
-        <span class="ob-dot" aria-current="true"></span>
-        <span class="ob-dot" aria-current="false"></span>
-        <span class="ob-dot" aria-current="false"></span>
+        <span class="ob-dot" aria-current="true"></span><span class="ob-dot"></span>
+        <span class="ob-dot"></span><span class="ob-dot"></span>
       </div>
 
-      <!-- step 1 — who are you -->
-      <section data-step="0" class="ob-step">
-        <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
-        <h1>What should we call you?</h1>
-        <p>This is all phantom ever asks. No phone number, no birthday, no contacts upload.</p>
-        <div class="field">
-          <svg class="icon" style="width:13px;height:13px" aria-hidden="true"><use href="#i-user"/></svg>
-          <input type="text" id="ob-name" placeholder="your name" autocomplete="nickname" aria-label="Display name">
-        </div>
-        <div class="field">
-          <span class="mono" style="color:var(--p-text-4);font-size:13px">@</span>
-          <input type="text" id="ob-handle" placeholder="handle" autocomplete="username" aria-label="Handle">
-        </div>
-        <button class="btn btn--solid" data-next>Continue</button>
+      <!-- 1 · welcome -->
+      <section class="ob2-step" data-s="0">
+        <span class="mono ob2-logo" data-logo4>&gt; PHANTOM_</span>
+        <h1>Private. Encrypted. Yours.</h1>
+        <p>Built for people who don't compromise.</p>
+        <button class="btn mono" data-go="1" style="width:100%;height:48px;background:var(--acc-blue);color:#fff;border-color:transparent">Get Started</button>
       </section>
 
-      <!-- step 2 — choose your world -->
-      <section data-step="1" class="ob-step" hidden>
-        <h1>Choose your world.</h1>
-        <p>The atmosphere your phantom floats in. You can change it anytime.</p>
-        <div class="ob-worlds">
-          {% for key in ['moon-horizon', 'deep-space', 'frozen-peaks', 'cloud-sea', 'black-ocean', 'glass-desert'] %}
-          <button class="media-tile" data-ob-theme="{{ key }}" aria-pressed="{{ 'true' if key == 'moon-horizon' else 'false' }}"
-                  aria-label="World: {{ atmospheres[key].label }}">
-            <img src="{{ url_for('static', filename=atmospheres[key].src) }}" alt="" loading="lazy">
-            <span class="cap"><span class="t">{{ atmospheres[key].label }}</span></span>
-          </button>
-          {% endfor %}
-        </div>
-        <div style="display:flex;gap:8px;margin-top:14px">
-          <button class="btn" data-back style="flex:1">Back</button>
-          <button class="btn btn--solid" data-next style="flex:2">Continue</button>
-        </div>
+      <!-- 2 · identity -->
+      <section class="ob2-step" data-s="1" hidden>
+        <h1>Choose your name</h1>
+        <p>This is all phantom ever asks for.</p>
+        <div class="field"><input type="text" id="ob2-name" placeholder="display name" maxlength="40" aria-label="Display name"></div>
+        <div class="field"><span class="mono" style="color:var(--p-text-4)">@</span>
+          <input type="text" id="ob2-handle" placeholder="username" maxlength="24" aria-label="Username" autocomplete="off"></div>
+        <div class="ob2-avail mono" id="ob2-avail"></div>
+        <button class="btn mono" data-go="2" style="width:100%;height:44px;background:var(--acc-blue);color:#fff;border-color:transparent">Continue</button>
       </section>
 
-      <!-- step 3 — how it behaves -->
-      <section data-step="2" class="ob-step" hidden>
-        <h1>Last thing.</h1>
-        <p>How should phantom behave?</p>
+      <!-- 3 · encryption keys -->
+      <section class="ob2-step" data-s="2" hidden>
+        <h1>Your keys are being generated</h1>
+        <p>X25519 keypair, generated on this device.<br>Your private key never leaves this browser.</p>
+        <div class="keyring" id="ob2-keyring"><svg class="icon" style="width:24px;height:24px"><use href="#i-lock"/></svg></div>
+        <p class="fingerprint" id="ob2-fp">…</p>
+        <button class="btn mono" data-go="3" id="ob2-keys-next" disabled
+                style="width:100%;height:44px;margin-top:14px;background:var(--acc-blue);color:#fff;border-color:transparent;opacity:0.5">
+          I understand — Continue</button>
+      </section>
 
-        <div class="setting-row" style="text-align:start">
-          <div><div class="t">Language</div><div class="d">Switches instantly, anytime.</div></div>
+      <!-- 4 · theme -->
+      <section class="ob2-step" data-s="3" hidden>
+        <h1>How should Phantom look?</h1>
+        <p>Change it anytime in Settings.</p>
+        <div class="theme-cards">
+          <button type="button" class="theme-card" data-th="dark" aria-pressed="true">
+            <span class="sw" style="background:#080808"></span><span>Dark</span></button>
+          <button type="button" class="theme-card" data-th="light" aria-pressed="false">
+            <span class="sw" style="background:#f5f5f7"></span><span>Light</span></button>
+          <button type="button" class="theme-card" data-th="midnight" aria-pressed="false">
+            <span class="sw" style="background:#000"></span><span>OLED</span></button>
         </div>
-        <div class="ob-langs">
-          {% for code, native in [('en','English'), ('hi','हिन्दी'), ('es','Español'), ('fr','Français'), ('de','Deutsch'), ('ja','日本語'), ('ar','العربية')] %}
-          <button class="btn btn--sm" data-ob-lang="{{ code }}" aria-pressed="{{ 'true' if code == 'en' else 'false' }}">{{ native }}</button>
-          {% endfor %}
-        </div>
-
-        <div class="setting-row" style="text-align:start;margin-top:6px">
-          <div><div class="t">Start in Ghost mode</div><div class="d">No typing indicators, no read receipts, no presence.</div></div>
-          <button class="switch" id="ob-ghost" role="switch" aria-checked="false" aria-label="Start in ghost mode"></button>
-        </div>
-
-        <div style="display:flex;gap:8px;margin-top:18px">
-          <button class="btn" data-back style="flex:1">Back</button>
-          <button class="btn btn--solid" id="ob-finish" style="flex:2">Enter phantom</button>
-        </div>
+        <button class="btn mono" id="ob2-finish" style="width:100%;height:48px;background:var(--acc-blue);color:#fff;border-color:transparent">Enter Phantom →</button>
       </section>
 
       <p style="margin-top:22px" class="label">E2E ENCRYPTED · ZERO TRACKERS · YOURS</p>
     </main>
   </div>
 
+  <script type="module">
+    import sodium from "https://esm.sh/libsodium-wrappers@0.7.15";
+    await sodium.ready; window.sodium = sodium;
+  </script>
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+  <script>
+    (function () {
+      const wrap = document.getElementById("ob2");
+      const steps = [...wrap.querySelectorAll(".ob2-step")];
+      const dots = [...wrap.querySelectorAll(".ob-dot")];
+      let theme = "dark";
+
+      function show(n) {
+        steps.forEach((s, i) => (s.hidden = i !== n));
+        dots.forEach((d, i) => d.setAttribute("aria-current", String(i === n)));
+        if (n === 2) genKeys();
+        const f = steps[n].querySelector("input, button:not([disabled])");
+        if (f) f.focus();
+      }
+      wrap.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => {
+        if (b.dataset.go === "2") {
+          const name = document.getElementById("ob2-name").value.trim();
+          if (!name) { document.getElementById("ob2-name").focus(); return; }
+        }
+        show(+b.dataset.go);
+      }));
+
+      // live username availability
+      const handle = document.getElementById("ob2-handle");
+      const avail = document.getElementById("ob2-avail");
+      let t;
+      handle.addEventListener("input", () => {
+        clearTimeout(t);
+        const v = handle.value.trim().replace(/^@/, "").toLowerCase();
+        avail.className = "ob2-avail mono"; avail.textContent = "";
+        if (v.length < 2) return;
+        t = setTimeout(async () => {
+          const r = await fetch("/api/users/find?q=" + encodeURIComponent(v)).then((x) => x.json()).catch(() => ({ results: [] }));
+          const taken = r.results.some((u) => u.handle === v);
+          avail.classList.add(taken ? "bad" : "ok");
+          avail.textContent = taken ? "✕ @" + v + " is taken" : "✓ @" + v + " is available";
+        }, 350);
+      });
+
+      // keygen step
+      let keysDone = false;
+      async function genKeys() {
+        if (keysDone) return;
+        let n = 0;
+        while (typeof window.sodium === "undefined" && n++ < 100) await new Promise((r) => setTimeout(r, 50));
+        const s = window.sodium;
+        if (!s) { document.getElementById("ob2-fp").textContent = "crypto unavailable — continuing without keys"; unlock(); return; }
+        await s.ready;
+        let sk = localStorage.getItem("phantom_sk"), pk = localStorage.getItem("phantom_pk");
+        if (!sk) {
+          const kp = s.crypto_box_keypair();
+          sk = s.to_base64(kp.privateKey); pk = s.to_base64(kp.publicKey);
+          localStorage.setItem("phantom_sk", sk); localStorage.setItem("phantom_pk", pk);
+        }
+        await new Promise((r) => setTimeout(r, 900));   // let the ring spin a beat
+        const fp = [...s.from_base64(pk).slice(0, 8)].map((b) => b.toString(16).padStart(2, "0").toUpperCase()).join(":");
+        document.getElementById("ob2-fp").textContent = fp;
+        fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ public_key: pk }) }).catch(() => {});
+        unlock();
+      }
+      function unlock() {
+        keysDone = true;
+        document.getElementById("ob2-keyring").classList.add("done");
+        const b = document.getElementById("ob2-keys-next");
+        b.disabled = false; b.style.opacity = "1";
+        setTimeout(() => { if (!steps[3].hidden) return; show(3); }, 1600);  // auto-advance
+      }
+
+      // theme cards
+      wrap.querySelectorAll(".theme-card").forEach((c) => c.addEventListener("click", () => {
+        theme = c.dataset.th;
+        wrap.querySelectorAll(".theme-card").forEach((x) => x.setAttribute("aria-pressed", String(x === c)));
+        window.phantom.applySkin(theme);
+      }));
+
+      document.getElementById("ob2-finish").addEventListener("click", async () => {
+        const name = document.getElementById("ob2-name").value.trim() || "you";
+        const handleV = handle.value.trim().replace(/^@/, "").toLowerCase() || name.toLowerCase().replace(/\s+/g, "");
+        window.phantom.store.setProfile({ name, handle: "@" + handleV });
+        window.phantom.applySkin(theme);
+        await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_name: name }) }).catch(() => {});
+        window.location.href = "/app";
+      });
+
+      show(0);
+    })();
+  </script>
 </body>
 </html>

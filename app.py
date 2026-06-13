@@ -287,13 +287,23 @@ def resolve_conversation(conv_id, user):
 def load_messages(sid, me):
     rows = sb_rows(lambda c: c.table("messages").select("*")
                    .eq("conversation_id", sid).order("created_at", desc=False).limit(500))
-    out = []
+    out, expired = [], []
+    now = time.time()
     for r in rows:
+        meta = r.get("meta") or {}
+        if meta.get("expires") and float(meta["expires"]) < now:
+            expired.append(r["id"])
+            continue
         out.append({
             "id": r["id"], "author": r["author"], "body": r["body"],
-            "kind": r.get("kind") or "text", "meta": r.get("meta") or {},
+            "kind": r.get("kind") or "text", "meta": meta,
             "mine": (r["author"] == me) or (r["author"] == "me"),
         })
+    for mid in expired:  # ghost messages burn on read
+        try:
+            sb().table("messages").delete().eq("id", mid).execute()
+        except Exception:
+            pass
     return out
 
 
@@ -338,7 +348,8 @@ def base_context(view):
 
 @app.route("/")
 def landing():
-    return render_template("landing.html", lang=session.get("lang", "en"))
+    return render_template("landing.html", lang=session.get("lang", "en"),
+                           user=current_user())
 
 
 @app.route("/docs")

@@ -88,7 +88,7 @@
       </div>
     </header>
 
-    <div class="chat-scroll" id="chat-scroll" aria-live="polite">
+    <div class="chat-scroll" id="chat-scroll" data-kind="{{ active.type }}" aria-live="polite">
       {% for m in active.messages %}
       <div class="bubble-row {{ 'me' if m.mine }}" data-id="{{ m.id }}" data-author="{{ m.author }}" data-mine="{{ '1' if m.mine else '0' }}">
         <span class="msg-pre mono" aria-hidden="true">&gt;</span>
@@ -99,8 +99,10 @@
           <span>{{ m.body }}</span>
           <span class="fsize">{{ m.meta.size or 'open' }}</span>
         </button>
+        {% elif m.meta.e2e %}
+        <div class="bubble" data-e2e="1" data-cipher="{{ m.body }}" data-nonce="{{ m.meta.nonce }}" data-spk="{{ m.meta.spk or '' }}" data-exp="{{ m.meta.expires or '' }}">decrypting…</div>
         {% else %}
-        <div class="bubble">{{ m.body }}</div>
+        <div class="bubble"{% if m.meta.expires %} data-exp="{{ m.meta.expires }}"{% endif %}>{{ m.body }}</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -112,7 +114,7 @@
 
     <div class="composer">
       <form class="composer-inner" id="composer-form" data-conv="{{ active.id }}"
-            data-sid="{{ active.sid }}" data-rt="{{ '1' if active.type in ('dm', 'space') else '0' }}"
+            data-sid="{{ active.sid }}" data-peer-pk="{{ active.peer_profile.public_key if active.peer_profile else '' }}" data-rt="{{ '1' if active.type in ('dm', 'space') else '0' }}"
             data-title="{{ active.title }}" data-atmosphere="{{ active.atmosphere }}"
             {% if active.type == 'ai' %}data-ai="1"{% endif %}
             {% if active.type == 'local' %}data-local="1"{% endif %}>
@@ -178,7 +180,7 @@
     <span class="label">ABOUT</span>
     <p class="info-about">{{ active.peer_profile.status or 'No status set.' }}</p>
     {% if active.peer_profile.created_at %}<p class="mono info-joined">joined {{ active.peer_profile.created_at[:10] }}</p>{% endif %}
-    {% if active.peer_profile.public_key %}<p class="mono info-key" title="{{ active.peer_profile.public_key }}"><svg class="icon" style="width:11px;height:11px;color:var(--acc-blue)"><use href="#i-lock"/></svg> X25519 · key on file</p>{% endif %}
+    {% if active.peer_profile.public_key %}<p class="mono info-key" title="{{ active.peer_profile.public_key }}"><svg class="icon" style="width:11px;height:11px;color:var(--acc-blue)"><use href="#i-lock"/></svg> <span class="fingerprint" data-fp="{{ active.peer_profile.public_key }}">X25519</span></p>{% endif %}
   </div>
   {% elif active.type == 'space' and active.space %}
   <div class="info-block">
@@ -229,12 +231,16 @@
     const sid = form.dataset.sid;
     const client = window.supabase.createClient("{{ sb_url }}", "{{ sb_anon }}");
 
-    function appendRemote(m) {
+    async function appendRemote(m) {
       if (scroll.querySelector(`[data-id="${m.id}"]`)) return;             // already shown
-      if (m.author === me) {                                               // our optimistic row, claim it
-        const tmp = [...scroll.querySelectorAll('[data-id^="tmp"],[data-id^="c"]')].reverse()
-          .find((r) => (r.querySelector(".bubble") || {}).textContent === m.body);
-        if (tmp) { tmp.dataset.id = m.id; return; }
+      if (m.author === me) return;                                          // own sends already rendered
+      const meta = m.meta || {};
+      let text = m.body;
+      if (meta.e2e && window.phantom.e2eDecrypt) {
+        const other = meta.spk || form.dataset.peerPk || "";
+        const plain = await window.phantom.e2eDecrypt(m.body, meta.nonce, other);
+        text = plain !== null ? plain : "⚠ can't decrypt on this device";
+        if (window.phlog) window.phlog("ok", "decrypted live message");
       }
       const row = document.createElement("div");
       row.className = "bubble-row";
@@ -242,10 +248,11 @@
       row.innerHTML = '<span class="msg-pre mono" aria-hidden="true">&gt;</span>' +
         '<span class="msg-author mono"></span><div class="bubble"></div>';
       row.querySelector(".msg-author").textContent = m.author;
-      row.querySelector(".bubble").textContent = m.body;
+      row.querySelector(".bubble").textContent = text;
       scroll.insertBefore(row, document.getElementById("remote-typing"));
       scroll.scrollTop = scroll.scrollHeight;
       hideTyping();
+      if (window.phlog) window.phlog("info", "realtime INSERT " + m.id.slice(0, 8));
     }
 
     client.channel("messages:" + sid)

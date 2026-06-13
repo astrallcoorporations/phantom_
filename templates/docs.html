@@ -35,6 +35,13 @@
 
     <div class="docs-body mono">
       <h2 id="quickstart">&gt; QUICK START</h2>
+      <div class="termcard" style="max-width:none;justify-self:stretch;margin-bottom:22px">
+        <div class="tc-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <span class="tc-line c-cmd">$ npm install @phantom/sdk</span>
+        <span class="tc-line"><span class="c-key">const</span> client = <span class="c-key">new</span> Phantom({ encryption: <span class="c-str">'X25519-XSalsa20-Poly1305'</span>, logging: <span class="c-bool">false</span> })</span>
+        <span class="tc-line"><span class="c-key">await</span> client.connect()</span>
+        <span class="tc-line c-ok">✓  connected · E2E active · 0 logs stored</span>
+      </div>
       <p><span style="color:var(--acc-blue)">01</span> — Clone and install.</p>
       <div class="codeblock"><span class="lang">shell</span><button class="copy-btn" data-copy aria-label="Copy"><svg class="icon" style="width:12px;height:12px"><use href="#i-file"/></svg></button>$ git clone https://github.com/astrallcoorporations/phantom_.git
 $ cd phantom_ && pip install -r requirements.txt</div>

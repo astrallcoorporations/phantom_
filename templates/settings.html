@@ -26,6 +26,8 @@
           <svg class="icon" style="width:13px;height:13px"><use href="#i-globe"/></svg> <span data-i18n="languages">Language</span></button>
         <button data-tab="accessibility" role="tab" aria-selected="false">
           <svg class="icon" style="width:13px;height:13px"><use href="#i-people"/></svg> <span data-i18n="accessibility">Accessibility</span></button>
+        <button data-tab="developer" role="tab" aria-selected="false">
+          <svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg> Developer</button>
         <button data-tab="troubleshoot" role="tab" aria-selected="false">
           <svg class="icon" style="width:13px;height:13px"><use href="#i-info"/></svg> Troubleshoot</button>
         <hr>
@@ -71,6 +73,13 @@
             <button class="switch" data-ghost-toggle role="switch" aria-checked="{{ 'true' if ghost else 'false' }}" aria-label="Ghost mode"></button>
           </div>
           <div class="setting-row">
+            <div><div class="t">Disappearing messages</div><div class="d">When Ghost mode is on, new messages self-destruct after:</div></div>
+            <select id="ghost-ttl" class="mono" style="background:var(--p-panel-hi);border:1px solid var(--p-line);border-radius:8px;color:var(--p-text);padding:7px 10px;font-size:12px">
+              <option value="10">10s</option><option value="30">30s</option><option value="60" selected>1m</option>
+              <option value="300">5m</option><option value="3600">1h</option><option value="86400">24h</option>
+            </select>
+          </div>
+          <div class="setting-row">
             <div><div class="t">End-to-end encryption</div><div class="d">Always on. Not a setting — a foundation.</div></div>
             <span class="label">ALWAYS ON</span>
           </div>
@@ -99,6 +108,35 @@
               </button>
               {% endfor %}
             </div>
+          </div>
+          <div class="setting-row" style="display:block">
+            <div style="margin-bottom:12px"><div class="t">Accent color</div><div class="d">Used for actions, links, and your bubbles.</div></div>
+            <div class="swatches">
+              {% for hex in ['#0A84FF','#30D158','#FF9F0A','#FF453A','#BF5AF2','#64D2FF','#FFD60A','#FF375F'] %}
+              <button class="swatch-btn" data-accent-pick="{{ hex }}" aria-pressed="false" style="background:{{ hex }}" aria-label="Accent {{ hex }}"></button>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Font</div><div class="d">SF Pro for reading, JetBrains Mono for the terminal feel.</div></div>
+            <span style="display:flex;gap:6px">
+              <button class="btn btn--sm" data-font-pick="sf" aria-pressed="true">SF Pro</button>
+              <button class="btn btn--sm mono" data-font-pick="mono" aria-pressed="false">Mono</button>
+            </span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Bubble style</div><div class="d">Modern rounded bubbles, or flat terminal rows.</div></div>
+            <span style="display:flex;gap:6px">
+              <button class="btn btn--sm" data-bubble-style="modern" aria-pressed="true">Modern</button>
+              <button class="btn btn--sm mono" data-bubble-style="flat" aria-pressed="false">Terminal</button>
+            </span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Message density</div></div>
+            <span style="display:flex;gap:6px">
+              <button class="btn btn--sm" data-density-pick="compact" aria-pressed="false">Compact</button>
+              <button class="btn btn--sm" data-density-pick="comfortable" aria-pressed="true">Comfortable</button>
+            </span>
           </div>
           <div class="setting-row">
             <div><div class="t">Atmosphere visibility</div><div class="d">How present the environment feels (15–30%).</div></div>
@@ -175,6 +213,30 @@
           </div>
         </section>
 
+        <section class="panel panel-pad" data-pane="developer" role="tabpanel" aria-label="Developer" hidden>
+          <div class="setting-row">
+            <div><div class="t">Public key fingerprint</div><div class="d">X25519 — share it so people can verify you.</div></div>
+            <span class="fingerprint mono" id="dev-fp">…</span>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Export public key</div><div class="d">Copies your base64 public key.</div></div>
+            <button class="btn btn--sm" id="dev-export-pk">Copy key</button>
+          </div>
+          <div class="setting-row">
+            <div><div class="t">Realtime connection</div><div class="d">Supabase WebSocket transport.</div></div>
+            <span style="display:flex;align-items:center;gap:7px"><span class="presence presence--online" aria-hidden="true"></span><span class="presence-label">{{ 'AVAILABLE' if sb_ready else 'NOT CONFIGURED' }}</span></span>
+          </div>
+          <div class="setting-row" style="display:block;border-bottom:none">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+              <div class="t" style="flex:1">Debug console</div>
+              <button class="btn btn--sm" id="dev-copy">Copy</button>
+              <button class="btn btn--sm" id="dev-clear">Clear</button>
+            </div>
+            <div class="d" style="margin-bottom:6px">Live event log: realtime, encryption ops, sends, errors.</div>
+            <div class="dev-console" id="dev-console" aria-live="polite"></div>
+          </div>
+        </section>
+
         <section class="panel panel-pad" data-pane="troubleshoot" role="tabpanel" aria-label="Troubleshoot" hidden>
           <div style="margin-bottom:16px">
             <div class="t" style="color:var(--p-text);font-size:13.5px">Common fixes</div>
@@ -203,4 +265,21 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function () {
+    const fp = document.getElementById("dev-fp");
+    if (fp && window.phantom && window.phantom.fingerprintOf) {
+      const v = await window.phantom.fingerprintOf(localStorage.getItem("phantom_pk") || "");
+      fp.textContent = v || "no key on this device";
+    }
+    const ex = document.getElementById("dev-export-pk");
+    if (ex) ex.addEventListener("click", () => {
+      navigator.clipboard.writeText(localStorage.getItem("phantom_pk") || "").catch(() => {});
+      ex.textContent = "Copied ✓";
+    });
+  })();
+</script>
 {% endblock %}

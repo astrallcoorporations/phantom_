@@ -21,46 +21,43 @@
       <a href="{{ url_for('docs') }}">DOCS</a>
       <a href="{{ url_for('docs') }}#api">API</a>
       <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GITHUB</a>
+      {% if user %}
+      <div class="nav-user">
+        <button class="nav-avatar" id="nav-avatar" aria-haspopup="true" aria-expanded="false">{{ user.name[:2] | lower }}</button>
+        <div class="nav-menu" id="nav-menu" hidden>
+          <a href="/app/profile"><svg class="icon" style="width:13px;height:13px"><use href="#i-user"/></svg> Profile</a>
+          <a href="/app/settings"><svg class="icon" style="width:13px;height:13px"><use href="#i-settings"/></svg> Settings</a>
+          <a href="{{ url_for('docs') }}"><svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg> Docs</a>
+          <button id="nav-copykey"><svg class="icon" style="width:13px;height:13px"><use href="#i-lock"/></svg> Copy Public Key</button>
+          <a class="open-btn" href="/app">Open Phantom →</a>
+          <hr>
+          <a class="danger" href="/logout">Sign Out</a>
+        </div>
+      </div>
+      {% else %}
       <a href="{{ url_for('auth') }}">SIGN IN</a>
       <a class="l3-cta-sm" href="{{ url_for('auth') }}">GET PHANTOM →</a>
+      {% endif %}
     </div>
   </nav>
 
-  <!-- ============ HERO ============ -->
-  <header class="l3-hero" id="hero" style="display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center">
-    <div class="l3-hero-copy">
-      <span class="l3-label mono">&gt; PHANTOM IN ACTION</span>
-      <h1 class="mono" style="margin-top:18px">Encrypted by default.<br>Auditable by design.<span class="l3-type-caret" aria-hidden="true"></span></h1>
-      <p class="mono l3-sub">E2E encrypted messaging + calling for developers<br>who don't compromise.</p>
-      <div class="l3-hero-cta">
-        <a class="l3-btn l3-btn--solid mono" href="{{ url_for('docs') }}" style="background:var(--acc-blue);color:#fff">READ THE DOCS
-          <svg class="icon" style="width:12px;height:12px"><use href="#i-arrow-up-right"/></svg></a>
-        <a class="l3-btn mono" href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">VIEW ON GITHUB</a>
-      </div>
-      <div class="l3-status mono" aria-hidden="true">
-        <span><i class="l3-dot l3-dot--ok"></i> SYSTEM ONLINE</span>
-        <span><i class="l3-dot"></i> PHANTOM IN 18 SECONDS</span>
-        <span><i class="l3-dot"></i> 0 LOGS STORED</span>
-      </div>
+  <!-- ============ HERO (Linear-style) ============ -->
+  <header class="l5-hero" id="hero">
+    <span class="l5-glow" aria-hidden="true"></span>
+    <h1>Private conversations.<br>Nothing else.</h1>
+    <p class="sub">End-to-end encrypted messaging, calling, and spaces — in one quiet, auditable app. No feeds. No trackers. No noise.</p>
+    <div class="l5-cta">
+      {% if user %}
+      <a class="l5-btn l5-btn--blue" href="/app">Open Phantom →</a>
+      {% else %}
+      <a class="l5-btn l5-btn--blue" href="{{ url_for('auth') }}">Get Phantom →</a>
+      {% endif %}
+      <a class="l5-btn l5-btn--ghost" href="{{ url_for('docs') }}">Read the docs</a>
     </div>
-
-    <div class="termcard" aria-label="Code example">
-      <div class="tc-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-      <span class="tc-line c-cmd">$ npm install @phantom/sdk</span>
-      <span class="tc-line"></span>
-      <span class="tc-line"><span class="c-key">import</span> { Phantom } <span class="c-key">from</span> <span class="c-str">'@phantom/sdk'</span></span>
-      <span class="tc-line"></span>
-      <span class="tc-line"><span class="c-key">const</span> client = <span class="c-key">new</span> Phantom({</span>
-      <span class="tc-line">  encryption: <span class="c-str">'X25519-XSalsa20-Poly1305'</span>,</span>
-      <span class="tc-line">  transport:  <span class="c-str">'wss://relay.phantom.dev'</span>,</span>
-      <span class="tc-line">  logging:    <span class="c-bool">false</span>,</span>
-      <span class="tc-line">})</span>
-      <span class="tc-line"></span>
-      <span class="tc-line"><span class="c-key">await</span> client.connect()</span>
-      <span class="tc-line c-ok" data-tc-type>✓  connected</span>
-      <span class="tc-line c-ok" data-tc-type>✓  E2E encryption active</span>
-      <span class="tc-line c-ok" data-tc-type>✓  0 logs stored</span>
-      <span class="tc-line"><span class="tc-caret" aria-hidden="true"></span></span>
+    <div class="l3-status mono" style="flex-direction:row;justify-content:center;gap:26px;margin-top:40px" aria-hidden="true">
+      <span><i class="l3-dot l3-dot--ok"></i> SYSTEM ONLINE</span>
+      <span><i class="l3-dot"></i> 0 LOGS STORED</span>
+      <span><i class="l3-dot"></i> E2E ENCRYPTED</span>
     </div>
   </header>
 

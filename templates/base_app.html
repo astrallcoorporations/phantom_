@@ -99,6 +99,18 @@
     </main>
   </div>
 
+  <nav class="tabbar" aria-label="Mobile navigation">
+    {% for item in [('messages', url_for('messages'), 'i-messages', 'Chats'),
+                    ('calls', url_for('calls_view'), 'i-calls', 'Calls'),
+                    ('people', url_for('people_view'), 'i-people', 'People'),
+                    ('spaces', url_for('spaces_view'), 'i-spaces', 'Spaces'),
+                    ('settings', url_for('settings_view'), 'i-settings', 'Settings')] %}
+    <a href="{{ item[1] }}" {% if view == item[0] %}aria-current="page"{% endif %}>
+      <svg class="icon"><use href="#{{ item[2] }}"/></svg>{{ item[3] }}
+    </a>
+    {% endfor %}
+  </nav>
+
   <!-- Command center -->
   <div class="cmdk-backdrop" id="cmdk" role="dialog" aria-modal="true" aria-label="Command center">
     <div class="cmdk">

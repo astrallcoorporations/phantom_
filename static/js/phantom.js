@@ -297,6 +297,23 @@
     const theme = store.getPref("theme", null);
     if (theme) applyTheme(theme);
     applySkin(store.getPref("skin", "dark"));
+    applyAccent(store.getPref("accent", null));
+    document.body.classList.toggle("bubbles-flat", store.getPref("bubbles", "modern") === "flat");
+    document.body.dataset.density = store.getPref("density", "comfortable");
+    if (store.getPref("fontFamily", "sf") === "mono")
+      document.documentElement.style.setProperty("--font-body", "var(--font-mono)");
+  }
+
+  function applyAccent(hex) {
+    document.querySelectorAll("[data-accent-pick]").forEach((b) =>
+      b.setAttribute("aria-pressed", String(b.dataset.accentPick === (hex || ""))));
+    if (!hex) return;
+    store.setPref("accent", hex);
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), bl = parseInt(hex.slice(5, 7), 16);
+    const root = document.documentElement.style;
+    root.setProperty("--p-accent", hex);
+    root.setProperty("--acc-blue", hex);
+    root.setProperty("--p-accent-soft", "rgba(" + r + "," + g + "," + bl + ",0.14)");
   }
 
   function initPrefControls() {
@@ -314,6 +331,41 @@
       btn.addEventListener("click", () => applyTheme(btn.dataset.atmDefault)));
     document.querySelectorAll("[data-skin-pick]").forEach((btn) =>
       btn.addEventListener("click", () => applySkin(btn.dataset.skinPick)));
+    document.querySelectorAll("[data-accent-pick]").forEach((btn) =>
+      btn.addEventListener("click", () => applyAccent(btn.dataset.accentPick)));
+    document.querySelectorAll("[data-bubble-style]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        store.setPref("bubbles", btn.dataset.bubbleStyle);
+        document.body.classList.toggle("bubbles-flat", btn.dataset.bubbleStyle === "flat");
+        document.querySelectorAll("[data-bubble-style]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+      }));
+    document.querySelectorAll("[data-density-pick]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        store.setPref("density", btn.dataset.densityPick);
+        document.body.dataset.density = btn.dataset.densityPick;
+        document.querySelectorAll("[data-density-pick]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+      }));
+    document.querySelectorAll("[data-font-pick]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        store.setPref("fontFamily", btn.dataset.fontPick);
+        document.documentElement.style.setProperty("--font-body",
+          btn.dataset.fontPick === "mono" ? "var(--font-mono)" : "");
+        document.querySelectorAll("[data-font-pick]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+      }));
+    const ttlSel = document.getElementById("ghost-ttl");
+    if (ttlSel) {
+      ttlSel.value = String(store.getPref("ghostTTL", 60));
+      ttlSel.addEventListener("change", () => store.setPref("ghostTTL", +ttlSel.value));
+    }
+    const dc = document.getElementById("dev-console");
+    if (dc) {
+      window.__PHLOG.forEach((e) => dc.appendChild(devLine(e)));
+      dc.scrollTop = dc.scrollHeight;
+      const clr = document.getElementById("dev-clear");
+      if (clr) clr.addEventListener("click", () => { window.__PHLOG = []; sessionStorage.removeItem("phlog"); dc.innerHTML = ""; });
+      const cp = document.getElementById("dev-copy");
+      if (cp) cp.addEventListener("click", () => navigator.clipboard.writeText(JSON.stringify(window.__PHLOG)).catch(() => {}));
+    }
   }
 
   /* ========================================================================
@@ -616,6 +668,50 @@
       renderReactionChips(row, id);
       if (mine && !isAi) addStatus(row, "delivered");
     });
+    // E2E decrypt pass for server-rendered rows + TTL countdowns
+    const peerPk = form.dataset.peerPk || "";
+    document.querySelectorAll(".fingerprint[data-fp]").forEach(async (el) => {
+      const fp = await fingerprintOf(el.dataset.fp);
+      if (fp) el.textContent = "X25519 \u00b7 " + fp;
+    });
+    scroll.querySelectorAll(".bubble[data-e2e]").forEach(async (b) => {
+      const row = b.closest(".bubble-row");
+      const other = (row.dataset.mine === "1") ? peerPk : (b.dataset.spk || peerPk);
+      let plain = await e2eDecrypt(b.dataset.cipher, b.dataset.nonce, other);
+      if (plain === null && b.dataset.spk && b.dataset.spk !== other)
+        plain = await e2eDecrypt(b.dataset.cipher, b.dataset.nonce, b.dataset.spk);
+      b.textContent = plain !== null ? plain : "\u26a0 can't decrypt on this device";
+      if (plain === null) b.style.color = "var(--p-text-4)";
+      else phlog("ok", "decrypted " + row.dataset.id.slice(0, 8));
+      if (b.dataset.exp) startTtl(row, b.dataset.exp);
+    });
+    scroll.querySelectorAll(".bubble[data-exp]:not([data-e2e])").forEach((b) =>
+      startTtl(b.closest(".bubble-row"), b.dataset.exp));
+
+    // @username mention autocomplete
+    let mentionPop = null;
+    input.addEventListener("input", async () => {
+      const m = /@([a-z0-9_]{2,})$/i.exec(input.value);
+      if (mentionPop) { mentionPop.remove(); mentionPop = null; }
+      if (!m) return;
+      const res = await fetch("/api/users/find?q=" + encodeURIComponent(m[1])).then((r) => r.json()).catch(() => ({ results: [] }));
+      if (!res.results.length) return;
+      mentionPop = document.createElement("div");
+      mentionPop.className = "mention-pop";
+      res.results.slice(0, 5).forEach((u) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.innerHTML = '<span class="avatar" style="width:24px;height:24px;font-size:9px"></span><span></span>';
+        b.children[0].textContent = (u.display_name || u.handle).slice(0, 2).toLowerCase();
+        b.children[1].textContent = "@" + u.handle;
+        b.addEventListener("click", () => {
+          window.location.href = "/app/messages/dm-" + u.handle + "?t=" + encodeURIComponent(u.display_name || u.handle);
+        });
+        mentionPop.appendChild(b);
+      });
+      form.closest(".composer").appendChild(mentionPop);
+    });
+
     // info-panel media tiles open the same viewer
     document.querySelectorAll(".info-media-tile[data-file-id]").forEach((t) =>
       t.addEventListener("click", () => openFileViewer(t)));
@@ -687,19 +783,36 @@
         return;
       }
 
-      // dm / space — persist to Supabase, swap in the real id for delete
+      // dm / space: persist to Supabase; DMs are E2E when both sides have keys
       const optimistic = makeBubble(scroll, { id: "tmp" + Date.now(), author: ME, body, kind: "text", mine: true }, ctx);
       addStatus(optimistic, "sent");
       scroll.scrollTop = scroll.scrollHeight;
+      const meta = {};
+      if (document.body.classList.contains("ghost-on")) {
+        meta.expires = Date.now() / 1000 + (+store.getPref("ghostTTL", 60));
+        startTtl(optimistic, meta.expires);
+      }
+      let wire = body;
+      const pkPeer = form.dataset.peerPk || "";
+      if (pkPeer && !form.dataset.local) {
+        const enc = await e2eEncrypt(body, pkPeer);
+        if (enc) {
+          wire = enc.cipher;
+          meta.e2e = 1; meta.nonce = enc.nonce;
+          meta.spk = localStorage.getItem("phantom_pk") || "";
+          phlog("info", "encrypted (X25519-XSalsa20-Poly1305)");
+        }
+      }
       try {
         const res = await fetch(`/api/conversations/${convId}/messages`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body }),
+          body: JSON.stringify({ body: wire, meta }),
         });
         const data = await res.json();
         if (data.id) optimistic.dataset.id = data.id;
         addStatus(optimistic, "delivered");
-      } catch { /* stays on screen; reload re-syncs from Supabase */ }
+        phlog("ok", "delivered to " + convId);
+      } catch { phlog("err", "send failed: " + convId); }
     });
 
     // attachments — capture content for the inbuilt viewer, send a file message
@@ -1343,6 +1456,93 @@
   }
 
   /* ========================================================================
+     E2E (libsodium crypto_box) + disappearing messages + dev log
+     ======================================================================== */
+
+  window.__PHLOG = JSON.parse(sessionStorage.getItem("phlog") || "[]");
+  function phlog(kind, msg) {
+    const e = { k: kind, m: msg, t: new Date().toLocaleTimeString() };
+    window.__PHLOG.push(e);
+    if (window.__PHLOG.length > 100) window.__PHLOG.shift();
+    sessionStorage.setItem("phlog", JSON.stringify(window.__PHLOG));
+    const box = document.getElementById("dev-console");
+    if (box) { box.appendChild(devLine(e)); box.scrollTop = box.scrollHeight; }
+  }
+  function devLine(e) {
+    const d = document.createElement("div");
+    d.innerHTML = '<span class="lg-t"></span><span></span>';
+    d.children[0].textContent = e.t;
+    d.children[1].className = "lg-" + e.k;
+    d.children[1].textContent = e.m;
+    return d;
+  }
+  window.phlog = phlog;
+
+  async function sodiumReady() {
+    let n = 0;
+    while (typeof window.sodium === "undefined" && n++ < 80) await new Promise((r) => setTimeout(r, 50));
+    if (typeof window.sodium === "undefined") return null;
+    await window.sodium.ready;
+    return window.sodium;
+  }
+
+  async function e2eEncrypt(plain, otherPkB64) {
+    const s = await sodiumReady();
+    const sk = localStorage.getItem("phantom_sk");
+    if (!s || !sk || !otherPkB64) return null;
+    try {
+      const nonce = s.randombytes_buf(s.crypto_box_NONCEBYTES);
+      const cipher = s.crypto_box_easy(s.from_string(plain), nonce,
+        s.from_base64(otherPkB64), s.from_base64(sk));
+      return { cipher: s.to_base64(cipher), nonce: s.to_base64(nonce) };
+    } catch { return null; }
+  }
+
+  async function e2eDecrypt(cipherB64, nonceB64, otherPkB64) {
+    try {
+      const s = await sodiumReady();
+      const sk = localStorage.getItem("phantom_sk");
+      if (!s || !sk || !otherPkB64) return null;
+      const out = s.crypto_box_open_easy(s.from_base64(cipherB64), s.from_base64(nonceB64),
+        s.from_base64(otherPkB64), s.from_base64(sk));
+      return s.to_string(out);
+    } catch { return null; }
+  }
+
+  async function fingerprintOf(pkB64) {
+    const s = await sodiumReady();
+    if (!s || !pkB64) return "";
+    try {
+      return [...s.from_base64(pkB64).slice(0, 8)]
+        .map((b) => b.toString(16).padStart(2, "0").toUpperCase()).join(":");
+    } catch { return ""; }
+  }
+
+  function startTtl(row, expires) {
+    const bubble = row.querySelector(".bubble");
+    if (!bubble || !expires) return;
+    let chip = bubble.querySelector(".ttl-chip");
+    if (!chip) {
+      chip = document.createElement("span");
+      chip.className = "ttl-chip";
+      bubble.appendChild(chip);
+    }
+    const tick = () => {
+      const left = Math.round(+expires - Date.now() / 1000);
+      if (left <= 0) {
+        clearInterval(iv);
+        const chips = row.nextElementSibling;
+        if (chips && chips.classList.contains("reaction-chips")) chips.remove();
+        row.remove();
+        if (!/^(tmp|c)/.test(row.dataset.id)) fetch("/api/messages/" + row.dataset.id, { method: "DELETE" }).catch(() => {});
+        return;
+      }
+      chip.textContent = "\u23f1 " + (left > 90 ? Math.ceil(left / 60) + "m" : left + "s");
+    };
+    const iv = setInterval(tick, 1000); tick();
+  }
+
+  /* ========================================================================
      Settings tabs
      ======================================================================== */
 
@@ -1444,5 +1644,18 @@
       el.addEventListener("click", () => applyLanguage(el.dataset.lang, true)));
   });
 
-  window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store };
+  window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store, e2eDecrypt, fingerprintOf, phlog };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const av = document.getElementById("nav-avatar"), menu = document.getElementById("nav-menu");
+    if (av && menu) {
+      av.addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+      document.addEventListener("click", () => { menu.hidden = true; });
+      const ck = document.getElementById("nav-copykey");
+      if (ck) ck.addEventListener("click", () => {
+        navigator.clipboard.writeText(localStorage.getItem("phantom_pk") || "").catch(() => {});
+        ck.lastChild.textContent = " Copied \u2713";
+      });
+    }
+  });
 })();
