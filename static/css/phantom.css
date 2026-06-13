@@ -1283,9 +1283,14 @@ body.ghost-on .typing, body.ghost-on .receipt { visibility: hidden; }
 .l3-nav {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 24px;
+  flex-wrap: wrap;
   padding: 20px clamp(20px, 5vw, 64px);
   background: rgba(5,5,6,0.7); backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--p-line-soft);
+}
+.l3-links {
+  margin-inline-start: auto; display: flex; align-items: center; gap: 26px; font-size: 11px; letter-spacing: 0.14em; color: var(--p-text-3);
+  flex-wrap: wrap;
 }
 .l3-brand { font-size: 13px; letter-spacing: 0.14em; color: var(--p-text); }
 .l3-links { margin-inline-start: auto; display: flex; align-items: center; gap: 26px; font-size: 11px; letter-spacing: 0.14em; color: var(--p-text-3); }
@@ -1562,9 +1567,13 @@ body.ghost-on .typing, body.ghost-on .receipt { visibility: hidden; }
 }
 @media (max-width: 760px) {
   .l3-moon { width: 300px; opacity: 0.4; top: -50px; inset-inline-end: -70px; }
+  .l3-nav { padding: 16px 18px; gap: 16px; }
+  .l3-hero { padding: 40px 18px 60px; }
+  .l3-status { margin-top: 40px; }
 }
 @media (max-width: 640px) {
   .l3-links a:not(.l3-cta-sm) { display: none; }
+  .l3-nav { justify-content: space-between; }
   .l3-worlds { grid-template-columns: repeat(2, 1fr); }
   .l3-demo-body { grid-template-columns: 1fr; }
   .l3-demo-list { display: none; }
