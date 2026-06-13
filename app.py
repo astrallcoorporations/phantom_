@@ -1088,23 +1088,40 @@ def assistant():
 @app.get("/api/ice")
 def api_ice():
     import requests as rq
-    dom = (os.getenv("METERED_DOMAIN") or "").strip()
+    dom = (os.getenv("METERED_DOMAIN") or "").strip().replace("https://", "").replace("http://", "").strip("/")
     key = (os.getenv("METERED_API_KEY") or "").strip()
+    debug = request.args.get("debug")
+    diag = {"domain_present": bool(dom), "key_present": bool(key), "tried": [], "ok": False}
+
+    # underscores are invalid in hostnames — also try without it (phantom_.x -> phantom.x)
+    candidates = []
+    if dom:
+        candidates.append(dom)
+        if "_" in dom.split(".")[0]:
+            candidates.append(dom.split(".")[0].replace("_", "") + "." + ".".join(dom.split(".")[1:]))
+
+    if key:
+        for d in candidates:
+            try:
+                resp = rq.get(f"https://{d}/api/v1/turn/credentials?apiKey={key}", timeout=8)
+                diag["tried"].append({"host": d, "status": resp.status_code})
+                data = resp.json()
+                if isinstance(data, list) and data:
+                    diag["ok"] = True
+                    if debug:
+                        return jsonify(diag)
+                    return jsonify({"iceServers": data})
+            except Exception as exc:
+                diag["tried"].append({"host": d, "error": type(exc).__name__})
+
     ice = [{"urls": "stun:stun.l.google.com:19302"},
-           {"urls": "stun:stun1.l.google.com:19302"}]
-    if dom and key:
-        try:
-            r = rq.get(f"https://{dom}/api/v1/turn/credentials?apiKey={key}", timeout=8).json()
-            if isinstance(r, list):
-                return jsonify({"iceServers": r})
-        except Exception:
-            pass
-    # free public Open Relay (no key) as the default TURN
-    ice += [
-        {"urls": "turn:openrelay.metered.ca:80", "username": "openrelayproject", "credential": "openrelayproject"},
-        {"urls": "turn:openrelay.metered.ca:443", "username": "openrelayproject", "credential": "openrelayproject"},
-        {"urls": "turn:openrelay.metered.ca:443?transport=tcp", "username": "openrelayproject", "credential": "openrelayproject"},
-    ]
+           {"urls": "stun:stun1.l.google.com:19302"},
+           {"urls": "turn:openrelay.metered.ca:80", "username": "openrelayproject", "credential": "openrelayproject"},
+           {"urls": "turn:openrelay.metered.ca:443", "username": "openrelayproject", "credential": "openrelayproject"},
+           {"urls": "turn:openrelay.metered.ca:443?transport=tcp", "username": "openrelayproject", "credential": "openrelayproject"}]
+    if debug:
+        diag["fallback"] = "openrelay"
+        return jsonify(diag)
     return jsonify({"iceServers": ice})
 
 
