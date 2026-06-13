@@ -444,6 +444,65 @@ def docs():
     return render_template("docs.html", lang=session.get("lang", "en"))
 
 
+# --- PWA: manifest + service worker (served from root for full scope) ---
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    base = url_for("static", filename="img")
+    return jsonify({
+        "name": "Phantom", "short_name": "Phantom",
+        "description": "Private, encrypted messaging, calls and spaces.",
+        "start_url": "/app", "scope": "/", "display": "standalone",
+        "orientation": "portrait-primary",
+        "background_color": "#080808", "theme_color": "#080808",
+        "categories": ["social", "communication"],
+        "icons": [
+            {"src": base + "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": base + "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": base + "/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+            {"src": base + "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    })
+
+
+@app.route("/sw.js")
+def service_worker():
+    from flask import Response
+    sw = """
+const CACHE = 'phantom-v1';
+self.addEventListener('install', (e) => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+  if (e.request.method !== 'GET') return;
+  // cache-first for static assets, network-first for everything else
+  if (url.pathname.startsWith('/static/')) {
+    e.respondWith(caches.open(CACHE).then((c) =>
+      c.match(e.request).then((hit) => hit || fetch(e.request).then((r) => { c.put(e.request, r.clone()); return r; }))));
+  } else {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  }
+});
+"""
+    resp = Response(sw, mimetype="application/javascript")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.route("/.well-known/assetlinks.json")
+def assetlinks():
+    # Digital Asset Links — paste your PWABuilder/Play SHA-256 fingerprint(s) into
+    # the ANDROID_FINGERPRINTS env var (comma-separated) to verify the TWA.
+    fps = [f.strip() for f in (os.getenv("ANDROID_FINGERPRINTS") or "").split(",") if f.strip()]
+    return jsonify([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {"namespace": "android_app",
+                   "package_name": os.getenv("ANDROID_PACKAGE") or "chat.phantom.twa",
+                   "sha256_cert_fingerprints": fps},
+    }])
+
+
 DOWNLOAD_WIN = (SUPABASE_URL + "/storage/v1/object/public/files/downloads/Phantom-windows.exe") if SUPABASE_URL else "#"
 
 
