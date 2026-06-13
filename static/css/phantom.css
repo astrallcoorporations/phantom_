@@ -2218,3 +2218,61 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
 .dl-note { font-size: 10.5px; line-height: 1.7; color: var(--p-text-4); margin-top: 4px; }
 .dl-note b { color: var(--p-text-2); }
 @media (max-width: 860px) { .dl-grid { grid-template-columns: 1fr; } }
+
+/* ==========================================================================
+   v8 — amazing mobile
+   ========================================================================== */
+.chat-back { display: none; }
+
+@media (max-width: 640px) {
+  .shell { padding: 0; gap: 0; padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+  .content, .convo-col, .rail, .info-col { border-radius: 0 !important; }
+  .content, .convo-col { width: 100% !important; }
+
+  /* Messages: list when no chat open, full-screen chat when one is (uses :has) */
+  .main { position: relative; }
+  .main:has(.chat) .convo-col { display: none; }
+  .main:not(:has(.chat)) .content { display: none; }
+  .convo-col { display: flex; }
+
+  /* back button in chat header */
+  .chat-back { display: grid; place-items: center; width: 34px; height: 34px; flex: none;
+    color: var(--p-text-2); margin-inline-start: -6px; }
+  .chat-head { padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top)); }
+  .chat-head .e2e-badge { display: none; }
+
+  /* roomier list rows + headers */
+  .convo-col { padding-top: env(safe-area-inset-top); }
+  .convo-item { padding: 13px 14px; }
+  .convo-item .avatar { width: 44px; height: 44px; }
+  .convo-item .name { font-size: 15px; }
+  .convo-item .last { font-size: 13px; }
+  .panel-head { padding: 16px 16px; }
+  .panel-head h2 { font-size: 20px; }
+
+  /* bigger composer + tap targets, sit above the tab bar */
+  .composer { padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); }
+  .composer-inner { border-radius: 22px; padding: 6px 8px 6px 16px; }
+  .composer input[type=text] { font-size: 16px; }   /* >=16px stops iOS zoom-on-focus */
+  .icon-btn { width: 40px; height: 40px; }
+  .bubble-row .bubble { font-size: 15px; max-width: 80%; }
+
+  /* tab bar — taller, blurred, safe-area, active pill */
+  .tabbar { height: auto; padding-top: 8px; box-shadow: 0 -1px 0 var(--p-line-soft); }
+  .tabbar a { padding: 7px 2px; gap: 4px; font-size: 10px; }
+  .tabbar a .icon { width: 21px; height: 21px; }
+  .tabbar a[aria-current="page"] { position: relative; }
+  .tabbar a[aria-current="page"]::before {
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 22px; height: 2px; border-radius: 2px; background: var(--acc-blue);
+  }
+
+  /* full-bleed page content, larger headings */
+  .content-inner { padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .page-head h1 { font-size: 26px; }
+  .grid--2, .grid--3 { grid-template-columns: 1fr; }
+  .home-grid { grid-template-columns: 1fr !important; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .modal { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; align-self: flex-end; }
+  .modal-backdrop.open { align-items: flex-end; padding: 0; }
+}
