@@ -1088,8 +1088,10 @@ def assistant():
 @app.get("/api/ice")
 def api_ice():
     import requests as rq
-    dom = (os.getenv("METERED_DOMAIN") or "").strip().replace("https://", "").replace("http://", "").strip("/")
-    key = (os.getenv("METERED_API_KEY") or "").strip()
+    def _clean(v):
+        return (v or "").strip().strip('"').strip("'").strip()
+    dom = _clean(os.getenv("METERED_DOMAIN")).replace("https://", "").replace("http://", "").strip("/")
+    key = _clean(os.getenv("METERED_API_KEY"))
     debug = request.args.get("debug")
     diag = {"domain_present": bool(dom), "key_present": bool(key), "tried": [], "ok": False}
 
