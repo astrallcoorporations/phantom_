@@ -433,6 +433,15 @@ def docs():
     return render_template("docs.html", lang=session.get("lang", "en"))
 
 
+DOWNLOAD_WIN = (SUPABASE_URL + "/storage/v1/object/public/files/downloads/Phantom-windows.exe") if SUPABASE_URL else "#"
+
+
+@app.route("/download")
+def download():
+    return render_template("download.html", lang=session.get("lang", "en"),
+                           win_url=DOWNLOAD_WIN, user=current_user())
+
+
 @app.route("/auth")
 def auth():
     return render_template("auth.html", lang=session.get("lang", "en"),

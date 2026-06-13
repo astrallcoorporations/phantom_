@@ -2204,3 +2204,17 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
 .ring-meta b { display: block; font-size: 13.5px; color: var(--p-text); }
 .ring-meta i { font-style: normal; font-size: 11px; color: var(--p-text-4); }
 .ring-toast [data-ans] { background: var(--acc-green); color: #fff; border-color: transparent; }
+
+/* ==========================================================================
+   Download page
+   ========================================================================== */
+.dl-grid { max-width: 1000px; margin: 0 auto; padding: 20px 24px 60px; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; align-items: start; position: relative; z-index: 2; }
+.dl-card { padding: 28px 24px; display: flex; flex-direction: column; gap: 10px; }
+.dl-card--main { border-color: rgba(10,132,255,0.35); box-shadow: inset 0 1px 0 var(--p-sheen), 0 0 0 1px rgba(10,132,255,0.15), 0 30px 80px rgba(0,0,0,0.4); }
+.dl-os { width: 26px; height: 26px; color: var(--acc-blue); }
+.dl-card h3 { font-family: var(--font-display); font-size: 19px; font-weight: 650; color: var(--p-text); letter-spacing: -0.01em; }
+.dl-meta { font-size: 10.5px; color: var(--p-text-4); letter-spacing: 0.04em; }
+.dl-btn { justify-content: center; margin-top: 6px; }
+.dl-note { font-size: 10.5px; line-height: 1.7; color: var(--p-text-4); margin-top: 4px; }
+.dl-note b { color: var(--p-text-2); }
+@media (max-width: 860px) { .dl-grid { grid-template-columns: 1fr; } }

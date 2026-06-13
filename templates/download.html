@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>phantom_ — download</title>
+  <meta name="description" content="Download Phantom for desktop. Private, encrypted messaging in a native app.">
+  <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+</head>
+<body class="landing l5">
+  {% include "_icons.html" %}
+
+  <nav class="l5-nav">
+    <a class="l5-logo" data-logo4 href="/">&gt; PHANTOM_</a>
+    <div class="l5-navlinks">
+      <a href="/#features">Features</a>
+      <a href="{{ url_for('docs') }}">Docs</a>
+      <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <div class="l5-navright">
+      <a class="l5-signin" href="{{ url_for('auth') }}">Log in</a>
+      <a class="l5-btn l5-btn--blue l5-btn--sm" href="/app">Open web app</a>
+    </div>
+  </nav>
+
+  <header class="l5-hero" id="hero" style="padding-bottom:10px">
+    <span class="l5-glow" aria-hidden="true"></span>
+    <span class="cube cube--lg" aria-hidden="true" style="margin:0 auto 22px"><span class="cube-core"></span></span>
+    <h1>Get Phantom for desktop</h1>
+    <p class="sub">A native app — its own window, no browser. Encrypted messaging, calls, and files, always a click away.</p>
+  </header>
+
+  <section class="dl-grid">
+    <div class="dl-card dl-card--main panel">
+      <svg class="icon dl-os" aria-hidden="true"><use href="#i-devices"/></svg>
+      <h3>Windows</h3>
+      <p class="dl-meta mono">Phantom-windows.exe · ~19 MB · Windows 10/11</p>
+      <a class="l5-btn l5-btn--blue dl-btn" href="{{ win_url }}" download>
+        <svg class="icon" style="width:14px;height:14px"><use href="#i-download"/></svg>
+        Download for Windows
+      </a>
+      <p class="dl-note mono">Double-click to run. Windows may show a SmartScreen prompt
+        (unsigned app) — click <b>More info → Run anyway</b>.</p>
+    </div>
+
+    <div class="dl-card panel">
+      <svg class="icon dl-os" aria-hidden="true"><use href="#i-globe"/></svg>
+      <h3>macOS / Linux</h3>
+      <p class="dl-meta mono">Run from source (Python)</p>
+      <div class="codeblock" style="text-align:start;margin:6px 0 0">git clone github.com/astrallcoorporations/phantom_
+pip install pywebview
+python desktop.py</div>
+      <p class="dl-note mono">Native <b>.app</b> / AppImage builds coming — or build Tauri yourself (see GitHub).</p>
+    </div>
+
+    <div class="dl-card panel">
+      <svg class="icon dl-os" aria-hidden="true"><use href="#i-messages"/></svg>
+      <h3>No install</h3>
+      <p class="dl-meta mono">Use it in your browser</p>
+      <a class="l5-btn l5-btn--ghost dl-btn" href="/app">Open the web app →</a>
+      <p class="dl-note mono">Same app, nothing to download. Works on any device.</p>
+    </div>
+  </section>
+
+  <section class="l5-final" style="padding-top:20px">
+    <p class="mono" style="color:var(--p-text-4);font-size:12px">
+      <svg class="icon" style="width:12px;height:12px;vertical-align:-2px"><use href="#i-lock"/></svg>
+      End-to-end encrypted · zero trackers · open source · MIT
+    </p>
+  </section>
+
+  <footer class="l5-foot mono">
+    <a data-logo4 href="/">&gt; PHANTOM_</a>
+    <span>© 2026 Phantom · MIT</span>
+    <div class="l5-foot-links">
+      <a href="{{ url_for('docs') }}">Docs</a>
+      <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+</body>
+</html>
