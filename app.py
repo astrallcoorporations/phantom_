@@ -499,7 +499,7 @@ def docs():
 @app.route("/manifest.webmanifest")
 def manifest():
     base = url_for("static", filename="img")
-    return jsonify({
+    manifest = {
         "name": "Phantom", "short_name": "Phantom",
         "description": "Private, encrypted messaging, calls and spaces.",
         "start_url": "/app", "scope": "/", "display": "standalone",
@@ -512,7 +512,17 @@ def manifest():
             {"src": base + "/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
             {"src": base + "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
         ],
-    })
+    }
+    android_pkg = os.getenv("ANDROID_PACKAGE")
+    android_fps = [f.strip() for f in (os.getenv("ANDROID_FINGERPRINTS") or "").split(",") if f.strip()]
+    if android_pkg and android_fps:
+        manifest["related_applications"] = [{
+            "platform": "play",
+            "url": f"https://play.google.com/store/apps/details?id={android_pkg}",
+            "id": android_pkg,
+        }]
+        manifest["prefer_related_applications"] = True
+    return jsonify(manifest)
 
 
 @app.route("/sw.js")

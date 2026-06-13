@@ -84,6 +84,26 @@ python desktop.py</div>
   </footer>
 
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
+  <script>
+    (async function() {
+      const mobileRE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+      const isMobile = mobileRE.test(navigator.userAgent || "");
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      let hasInstalledApp = isStandalone;
+      if (navigator.getInstalledRelatedApps) {
+        try {
+          const apps = await navigator.getInstalledRelatedApps();
+          hasInstalledApp = hasInstalledApp || apps.length > 0;
+        } catch (err) {
+          console.warn('Installed app check failed', err);
+        }
+      }
+      if (isMobile && hasInstalledApp) {
+        window.location.replace("{{ url_for('auth') }}");
+        return;
+      }
+    })();
+  </script>
   <script>if("serviceWorker" in navigator){addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}</script>
 </body>
 </html>
