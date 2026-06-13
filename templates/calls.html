@@ -191,11 +191,16 @@
 
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
-      if (s === "connected") {
-        setStatus("CONNECTED · E2E ACTIVE");
-      } else if (s === "failed" || s === "disconnected") {
-        removePeer(handle);
-      }
+      if (s === "connecting") setStatus("CONNECTING…");
+      else if (s === "connected") setStatus("CONNECTED · E2E ACTIVE");
+      else if (s === "failed") { setStatus("CONNECTION FAILED — retrying"); try { pc.restartIce(); } catch (_) {} }
+      else if (s === "closed") removePeer(handle);
+    };
+    pc.oniceconnectionstatechange = () => {
+      const i = pc.iceConnectionState;
+      if (i === "checking") setStatus("CONNECTING…");
+      else if (i === "connected" || i === "completed") setStatus("CONNECTED · E2E ACTIVE");
+      else if (i === "failed") { try { pc.restartIce(); } catch (_) {} }
     };
 
     return pc;
@@ -252,6 +257,7 @@
       let pc = peers[from];
       if (!pc) pc = makePeer(from, false);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await flushIce(from);                                   // apply any buffered candidates
       const ans = await pc.createAnswer();
       await pc.setLocalDescription(ans);
       signal({ type: "answer", to: from, answer: ans });
@@ -261,14 +267,29 @@
       const pc = peers[from];
       if (pc && pc.signalingState !== "stable") {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        await flushIce(from);
       }
       return;
     }
     if (type === "ice") {
       const pc = peers[from];
-      if (pc) {
-        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+      const cand = new RTCIceCandidate(candidate);
+      // buffer candidates that arrive before the remote description is set,
+      // otherwise addIceCandidate throws and the candidate is lost → stuck.
+      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+        try { await pc.addIceCandidate(cand); } catch (_) {}
+      } else {
+        (pendingIce[from] = pendingIce[from] || []).push(cand);
       }
+    }
+  }
+
+  const pendingIce = {};
+  async function flushIce(handle) {
+    const arr = pendingIce[handle] || [];
+    pendingIce[handle] = [];
+    for (const c of arr) {
+      try { await peers[handle].addIceCandidate(c); } catch (_) {}
     }
   }
 
