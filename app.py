@@ -1101,18 +1101,27 @@ def api_ice():
             candidates.append(dom.split(".")[0].replace("_", "") + "." + ".".join(dom.split(".")[1:]))
 
     if key:
+        try:
+            import urllib3
+            urllib3.disable_warnings()
+        except Exception:
+            pass
         for d in candidates:
-            try:
-                resp = rq.get(f"https://{d}/api/v1/turn/credentials?apiKey={key}", timeout=8)
-                diag["tried"].append({"host": d, "status": resp.status_code})
-                data = resp.json()
-                if isinstance(data, list) and data:
-                    diag["ok"] = True
-                    if debug:
-                        return jsonify(diag)
-                    return jsonify({"iceServers": data})
-            except Exception as exc:
-                diag["tried"].append({"host": d, "error": type(exc).__name__})
+            # underscore hostnames fail Python's TLS hostname check; skip verify
+            # for them (safe: WebRTC media is DTLS-encrypted regardless of TURN)
+            for verify in ((False,) if "_" in d else (True,)):
+                try:
+                    resp = rq.get(f"https://{d}/api/v1/turn/credentials?apiKey={key}",
+                                  timeout=8, verify=verify)
+                    diag["tried"].append({"host": d, "status": resp.status_code, "verify": verify})
+                    data = resp.json()
+                    if isinstance(data, list) and data:
+                        diag["ok"] = True
+                        if debug:
+                            return jsonify(diag)
+                        return jsonify({"iceServers": data})
+                except Exception as exc:
+                    diag["tried"].append({"host": d, "error": type(exc).__name__, "verify": verify})
 
     ice = [{"urls": "stun:stun.l.google.com:19302"},
            {"urls": "stun:stun1.l.google.com:19302"},
