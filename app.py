@@ -556,10 +556,31 @@ def assetlinks():
 DOWNLOAD_WIN = (SUPABASE_URL + "/storage/v1/object/public/files/downloads/Phantom-windows.exe") if SUPABASE_URL else "#"
 
 
+@app.route("/download/windows")
+def download_windows():
+    if not DOWNLOAD_WIN:
+        return redirect(url_for("download"))
+    import requests as rq
+    from flask import Response
+    try:
+        upstream = rq.get(DOWNLOAD_WIN, stream=True, timeout=20)
+        if upstream.status_code != 200:
+            return redirect(DOWNLOAD_WIN)
+        headers = {
+            "Content-Type": upstream.headers.get("content-type", "application/octet-stream"),
+            "Content-Disposition": "attachment; filename=Phantom-windows.exe",
+            "Cache-Control": "public, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+        }
+        return Response(upstream.iter_content(chunk_size=8192), headers=headers)
+    except Exception:
+        return redirect(DOWNLOAD_WIN)
+
+
 @app.route("/download")
 def download():
     return render_template("download.html", lang=session.get("lang", "en"),
-                           win_url=DOWNLOAD_WIN, user=current_user())
+                           win_url=url_for("download_windows"), user=current_user())
 
 
 @app.route("/auth")
