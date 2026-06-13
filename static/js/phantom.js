@@ -498,6 +498,18 @@
         a.querySelector(".avatar").textContent = c.title.slice(0, 2).toLowerCase();
         a.querySelector(".name").textContent = c.title;
         a.querySelector(".last").textContent = last ? last.body : "no messages yet";
+        const del = document.createElement("button");
+        del.className = "icon-btn"; del.style.cssText = "width:24px;height:24px;flex:none";
+        del.innerHTML = '<svg class="icon" style="width:12px;height:12px"><use href="#i-trash"/></svg>';
+        del.title = "Delete local conversation";
+        del.addEventListener("click", (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (!confirm("Delete this on-device conversation?")) return;
+          store.removeConvo(c.id);
+          if (location.pathname.endsWith(c.id)) window.location.href = "/app/messages";
+          else a.remove();
+        });
+        a.appendChild(del);
         list.appendChild(a);
       }
       if (home) {
@@ -831,6 +843,18 @@
         reader.onload = async () => {
           const meta = { size, mime: f.type };
           let id = "f" + Date.now().toString(36);
+          // upload to Supabase Storage so the recipient can open it too
+          if (window.sbClient && !isLocal && !isAi) {
+            try {
+              const path = (ME || "u") + "/" + Date.now() + "_" + f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+              const up = await window.sbClient.storage.from("files").upload(path, f, { upsert: true, contentType: f.type });
+              if (!up.error) {
+                const pub = window.sbClient.storage.from("files").getPublicUrl(path);
+                meta.url = pub.data.publicUrl;
+                phlog("ok", "uploaded " + f.name + " to storage");
+              }
+            } catch (e) { phlog("warn", "upload failed, keeping local copy"); }
+          }
           if (!isLocal && !isAi) {
             try {
               const res = await fetch(`/api/conversations/${convId}/messages`, {
@@ -841,13 +865,45 @@
               if (data.id) id = data.id;
             } catch { /* keep temp id */ }
           }
-          store.setFile(id, { name: f.name, kind, mime: f.type, size, content: reader.result, text: isText });
+          store.setFile(id, { name: f.name, kind, mime: f.type, size, content: reader.result, text: isText, url: meta.url });
           if (isLocal) store.addMessage(convId, { id, author: ME, body: f.name, kind, meta, mine: true });
           makeBubble(scroll, { id, author: ME, body: f.name, kind, meta, mine: true }, ctx);
           scroll.scrollTop = scroll.scrollHeight;
           fileInput.value = "";
         };
         if (isText) reader.readAsText(f); else reader.readAsDataURL(f);
+      });
+    }
+
+    // character counter
+    const cc = document.getElementById("char-count");
+    if (cc) {
+      const upd = () => {
+        const n = input.value.length, max = 4000;
+        cc.hidden = n < max - 500;
+        cc.textContent = (max - n);
+        cc.classList.toggle("warn", n > max - 200 && n <= max);
+        cc.classList.toggle("over", n >= max);
+      };
+      input.addEventListener("input", upd); upd();
+    }
+
+    // bit-by-bit: show only the last 30 rows, reveal older on demand
+    const allRows = [...scroll.querySelectorAll(".bubble-row")];
+    if (allRows.length > 30) {
+      const hidden = allRows.slice(0, allRows.length - 30);
+      hidden.forEach((r) => (r.style.display = "none"));
+      let shown = 30;
+      const older = document.createElement("button");
+      older.className = "load-older";
+      older.textContent = "Load older (" + hidden.length + ")";
+      scroll.prepend(older);
+      older.addEventListener("click", () => {
+        const next = allRows.slice(Math.max(0, allRows.length - shown - 30), allRows.length - shown);
+        next.forEach((r) => (r.style.display = ""));
+        shown += next.length;
+        if (shown >= allRows.length) older.remove();
+        else older.textContent = "Load older (" + (allRows.length - shown) + ")";
       });
     }
 
@@ -875,9 +931,13 @@
     }
     document.querySelectorAll("[data-conv-clear]").forEach((clear) =>
       clear.addEventListener("click", () => {
-        if (!confirm("Clear every message in this conversation? This cannot be undone.")) return;
+        const scope = clear.dataset.convClear || "me";
+        const msg = scope === "everyone"
+          ? "Delete every message for BOTH people? This cannot be undone."
+          : "Hide this conversation's history for you? The other person keeps theirs.";
+        if (!confirm(msg)) return;
         const id = (head && head.dataset.convId) || (document.getElementById("composer-form") || {}).dataset.conv;
-        fetch("/api/conversations/" + encodeURIComponent(id), { method: "DELETE" })
+        fetch("/api/conversations/" + encodeURIComponent(id) + "?scope=" + scope, { method: "DELETE" })
           .then(() => window.location.reload());
       }));
     const addBtn = document.getElementById("add-member-btn");
@@ -908,6 +968,26 @@
   }
   const RUNNABLE = { html: "html", htm: "html", js: "js", mjs: "js", css: "css" };
 
+  function attachAiFix(name, code, out) {
+    const dl = document.getElementById("fv-download");
+    const bar = document.createElement("button");
+    bar.className = "btn btn--sm";
+    bar.style.cssText = "position:absolute;top:8px;inset-inline-start:14px";
+    bar.innerHTML = '<svg class="icon" style="width:12px;height:12px"><use href="#i-sparkle"/></svg> Ask Phantom AI to fix';
+    bar.addEventListener("click", async () => {
+      bar.textContent = "thinking…"; out.hidden = false;
+      out.innerHTML = '<div class="fv-out-bar">PHANTOM AI</div><pre class="fv-log" id="ai-fix-out">…</pre>';
+      try {
+        const res = await fetch("/api/assistant", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Find and fix bugs in this file (" + name + "). Return the corrected code and a one-line summary:\n\n" + code.slice(0, 6000), history: [] }) });
+        const d = await res.json();
+        document.getElementById("ai-fix-out").textContent = d.reply || "no response";
+      } catch { document.getElementById("ai-fix-out").textContent = "could not reach Phantom AI"; }
+      bar.innerHTML = '<svg class="icon" style="width:12px;height:12px"><use href="#i-sparkle"/></svg> Ask Phantom AI to fix';
+    });
+    document.querySelector("#file-viewer .modal-head").appendChild(bar);
+  }
+
   function openFileViewer(btn) {
     const modal = document.getElementById("file-viewer");
     const body = document.getElementById("fv-body");
@@ -924,8 +1004,28 @@
     const dl = document.getElementById("fv-download");
     runBtn.hidden = true; dl.hidden = true;
 
+    const url = meta.url || (file && file.url);
+    if (!file && url) {
+      // remote file (uploaded to storage) — preview straight from the URL
+      dl.href = url; dl.download = name; dl.hidden = false;
+      if (type === "image") body.innerHTML = '<img class="fv-media" alt="">' , body.firstChild.src = url;
+      else if (type === "video") { const v = document.createElement("video"); v.src = url; v.controls = true; v.className = "fv-media"; body.appendChild(v); }
+      else if (type === "audio") { const a = document.createElement("audio"); a.src = url; a.controls = true; a.style.width = "100%"; body.appendChild(a); }
+      else if (type === "pdf") { const fr = document.createElement("iframe"); fr.src = url; fr.className = "fv-frame"; body.appendChild(fr); }
+      else {
+        const pre = document.createElement("pre"); pre.className = "fv-code"; pre.textContent = "loading…"; body.appendChild(pre);
+        const out = document.createElement("div"); out.className = "fv-output"; out.hidden = true; body.appendChild(out);
+        fetch(url).then((r) => r.text()).then((txt) => {
+          pre.textContent = txt;
+          if (RUNNABLE[ext]) { runBtn.hidden = false; runBtn.onclick = () => runCode(RUNNABLE[ext], txt, out); }
+          attachAiFix(name, txt, out);
+        }).catch(() => (pre.textContent = "could not load file"));
+      }
+      openModal(modal);
+      return;
+    }
     if (!file) {
-      body.innerHTML = '<div class="fv-empty"><p>This file was shared from another device, so its contents aren\'t stored here. Re-attach it to preview.</p></div>';
+      body.innerHTML = '<div class="fv-empty"><p>This file was shared from another device and isn\'t cached here.</p></div>';
       openModal(modal);
       return;
     }
@@ -963,6 +1063,7 @@
         runBtn.hidden = false;
         runBtn.onclick = () => runCode(RUNNABLE[ext], text, out);
       }
+      if (file.text) attachAiFix(name, text, out);
     }
     openModal(modal);
   }

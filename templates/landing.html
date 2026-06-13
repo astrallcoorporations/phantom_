@@ -3,168 +3,147 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>phantom_ — encrypted by default. auditable by design.</title>
-  <meta name="description" content="E2E encrypted messaging + calling for developers who don't compromise.">
+  <title>phantom_ — private conversations. nothing else.</title>
+  <meta name="description" content="End-to-end encrypted messaging, calling, and spaces. No feeds. No trackers. No noise.">
   <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
 </head>
-<body class="landing land3">
+<body class="landing l5">
   {% include "_icons.html" %}
   <a class="skip-link" href="#hero">skip to content</a>
-  <div class="grain" aria-hidden="true"></div>
 
-  <nav class="l3-nav" aria-label="Primary">
-    <a class="l3-brand mono" data-logo4 href="/">&gt; PHANTOM_</a>
-    <div class="l3-links mono">
-      <a href="{{ url_for('docs') }}">DOCS</a>
-      <a href="{{ url_for('docs') }}#api">API</a>
-      <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GITHUB</a>
+  <nav class="l5-nav">
+    <a class="l5-logo" data-logo4 href="/">&gt; PHANTOM_</a>
+    <div class="l5-navlinks">
+      <a href="#features">Features</a>
+      <a href="#deploy">Deploy</a>
+      <a href="{{ url_for('docs') }}">Docs</a>
+      <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <div class="l5-navright">
       {% if user %}
       <div class="nav-user">
         <button class="nav-avatar" id="nav-avatar" aria-haspopup="true" aria-expanded="false">{{ user.name[:2] | lower }}</button>
         <div class="nav-menu" id="nav-menu" hidden>
           <a href="/app/profile"><svg class="icon" style="width:13px;height:13px"><use href="#i-user"/></svg> Profile</a>
           <a href="/app/settings"><svg class="icon" style="width:13px;height:13px"><use href="#i-settings"/></svg> Settings</a>
-          <a href="{{ url_for('docs') }}"><svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg> Docs</a>
-          <button id="nav-copykey"><svg class="icon" style="width:13px;height:13px"><use href="#i-lock"/></svg> Copy Public Key</button>
+          <button id="nav-copykey"><svg class="icon" style="width:13px;height:13px"><use href="#i-lock"/></svg> Copy public key</button>
           <a class="open-btn" href="/app">Open Phantom →</a>
           <hr>
-          <a class="danger" href="/logout">Sign Out</a>
+          <a class="danger" href="/logout">Sign out</a>
         </div>
       </div>
       {% else %}
-      <a href="{{ url_for('auth') }}">SIGN IN</a>
-      <a class="l3-cta-sm" href="{{ url_for('auth') }}">GET PHANTOM →</a>
+      <a class="l5-signin" href="{{ url_for('auth') }}">Log in</a>
+      <a class="l5-btn l5-btn--blue l5-btn--sm" href="{{ url_for('auth') }}">Sign up</a>
       {% endif %}
     </div>
   </nav>
 
-  <!-- ============ HERO (Linear-style) ============ -->
   <header class="l5-hero" id="hero">
     <span class="l5-glow" aria-hidden="true"></span>
-    <h1>Private conversations.<br>Nothing else.</h1>
-    <p class="sub">End-to-end encrypted messaging, calling, and spaces — in one quiet, auditable app. No feeds. No trackers. No noise.</p>
+    <h1>The private messenger<br>for people who don't compromise</h1>
+    <p class="sub">End-to-end encrypted messaging, calling, and spaces — in one fast, auditable app. Designed for focus, not engagement.</p>
     <div class="l5-cta">
-      {% if user %}
-      <a class="l5-btn l5-btn--blue" href="/app">Open Phantom →</a>
-      {% else %}
-      <a class="l5-btn l5-btn--blue" href="{{ url_for('auth') }}">Get Phantom →</a>
-      {% endif %}
+      {% if user %}<a class="l5-btn l5-btn--blue" href="/app">Open Phantom →</a>
+      {% else %}<a class="l5-btn l5-btn--blue" href="{{ url_for('auth') }}">Get started — it's free</a>{% endif %}
       <a class="l5-btn l5-btn--ghost" href="{{ url_for('docs') }}">Read the docs</a>
-    </div>
-    <div class="l3-status mono" style="flex-direction:row;justify-content:center;gap:26px;margin-top:40px" aria-hidden="true">
-      <span><i class="l3-dot l3-dot--ok"></i> SYSTEM ONLINE</span>
-      <span><i class="l3-dot"></i> 0 LOGS STORED</span>
-      <span><i class="l3-dot"></i> E2E ENCRYPTED</span>
     </div>
   </header>
 
-  <!-- ============ REAL CONVERSATIONS (live demo) ============ -->
-  <section class="l3-section" id="action">
-    <div class="l3-action panel">
-      <div class="l3-action-copy">
-        <span class="l3-label mono">&gt; REAL CONVERSATIONS</span>
-        <h2 class="mono" style="font-weight:500">Built for real<br>conversations.</h2>
-        <p class="mono l3-sub" style="margin-top:16px">Encrypted messaging and calling that feels<br>instant, natural, and completely private.</p>
-        <a class="l3-play mono" href="{{ url_for('auth') }}">EXPLORE THE APP →</a>
-      </div>
-
-      <div class="l3-demo" role="img" aria-label="Phantom app preview — a private chat where messages appear in real time">
-        <div class="l3-demo-head mono"><i class="l3-dot l3-dot--ok"></i> PHANTOM
-          <span class="l3-demo-acts">
-            <svg class="icon" style="width:12px;height:12px"><use href="#i-calls"/></svg>
-            <svg class="icon" style="width:12px;height:12px"><use href="#i-search"/></svg>
-            <svg class="icon" style="width:12px;height:12px"><use href="#i-settings"/></svg>
-          </span>
+  <!-- framed product preview (Linear-style) -->
+  <section class="l5-shot">
+    <div class="l5-frame">
+      <div class="l5-demo">
+        <div class="l5-demo-rail">
+          <div class="l5-demo-logo mono" data-logo4>&gt; PHANTOM_</div>
+          {% for n, on in [('Mira', True), ('Jacob', True), ('Design Space', False), ('Orbit', False)] %}
+          <div class="l5-demo-row {{ 'sel' if loop.first }}">
+            <span class="l5-demo-av">{{ n[:1] }}</span><span>{{ n }}</span>
+            {% if on %}<span class="presence presence--online" style="margin-inline-start:auto;width:6px;height:6px"></span>{% endif %}
+          </div>
+          {% endfor %}
         </div>
-        <div class="l3-demo-body">
-          <div class="l3-demo-list">
-            {% for n, s, on in [('Mira','typing…', True), ('Jacob','online', True), ('Orbit','sent you a file', False), ('Alex','ghost mode', False), ('Study Room','notes-v2.pdf', False)] %}
-            <div class="l3-demo-row {{ 'sel' if loop.first }}">
-              <span class="l3-demo-av">{{ n[:1] }}</span>
-              <span class="l3-demo-meta"><b>{{ n }}</b><i>{{ s }}</i></span>
-              {% if on %}<span class="presence presence--online" style="width:5px;height:5px"></span>{% endif %}
-            </div>
-            {% endfor %}
-          </div>
-          <div class="l3-demo-chat">
-            <div class="l3-demo-peer"><span class="l3-demo-av">M</span><span><b>Mira</b><i class="mono">online</i></span></div>
-            <div class="l3-demo-msgs" id="demo-msgs"></div>
-            <div class="l3-demo-typing mono" id="demo-typing" hidden>
-              <span class="typing"><span></span><span></span><span></span></span> Mira is typing…
-            </div>
-            <div class="l3-demo-input mono">Message… <svg class="icon" style="width:11px;height:11px;margin-inline-start:auto"><use href="#i-lock"/></svg></div>
-          </div>
+        <div class="l5-demo-chat">
+          <div class="l5-demo-top"><span class="l5-demo-av">M</span><div><b>Mira</b><i class="presence-label" style="color:var(--acc-green)">online</i></div>
+            <span class="e2e-badge mono" style="margin-inline-start:auto"><svg class="icon" style="width:10px;height:10px"><use href="#i-lock"/></svg> ENCRYPTED</span></div>
+          <div class="l5-demo-msgs" id="demo-msgs"></div>
+          <div class="l3-demo-typing mono" id="demo-typing" hidden>
+            <span class="typing"><span></span><span></span><span></span></span> Mira is typing…</div>
+          <div class="l5-demo-input">Message…</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ FEATURE CARDS ============ -->
-  <section class="l3-section" id="features">
-    <div class="l3-cards">
-      <div class="l3-card panel reveal">
-        <svg class="icon"><use href="#i-shield"/></svg>
-        <div><b class="mono">E2E ENCRYPTION</b>
-        <p>X25519-XSalsa20-Poly1305. Only you and your contacts can read the messages. Ever.</p></div>
+  <!-- feature grid -->
+  <section class="l5-features" id="features">
+    <div class="l5-feat">
+      <svg class="icon"><use href="#i-shield"/></svg>
+      <h3>End-to-end encrypted</h3>
+      <p>X25519-XSalsa20-Poly1305. Every message encrypted on your device — the server only ever sees ciphertext.</p>
+    </div>
+    <div class="l5-feat">
+      <svg class="icon"><use href="#i-messages"/></svg>
+      <h3>Real-time, no polling</h3>
+      <p>Messages, typing, and presence stream over WebSockets. Instant on every device, every tab.</p>
+    </div>
+    <div class="l5-feat">
+      <svg class="icon"><use href="#i-spaces"/></svg>
+      <h3>Spaces, not servers</h3>
+      <p>Create public or private rooms with their own world and members. Owned by you, deleted by you.</p>
+    </div>
+    <div class="l5-feat">
+      <svg class="icon"><use href="#i-ghost"/></svg>
+      <h3>Ghost mode</h3>
+      <p>Disappearing messages, no read receipts, no presence. Speak without leaving a trace.</p>
+    </div>
+    <div class="l5-feat">
+      <svg class="icon"><use href="#i-file"/></svg>
+      <h3>Files that open in place</h3>
+      <p>Share documents, code, media — preview them inline and run code in the built-in console.</p>
+    </div>
+    <div class="l5-feat">
+      <svg class="icon"><use href="#i-sparkle"/></svg>
+      <h3>Phantom AI</h3>
+      <p>A private assistant on your own key. It helps with the conversation — never reads your life.</p>
+    </div>
+  </section>
+
+  <!-- deploy in minutes (replaces the SDK terminal) -->
+  <section class="l5-deploy" id="deploy">
+    <div class="l5-deploy-copy">
+      <span class="l5-eyebrow">SELF-HOST</span>
+      <h2>Deploy your own in minutes</h2>
+      <p>Phantom is one app and your own Supabase project. No vendor lock-in, no per-seat pricing — fork it, host it, own it.</p>
+      <div class="l5-cta" style="justify-content:flex-start">
+        <a class="l5-btn l5-btn--blue" href="https://vercel.com/new/clone?repository-url=https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">Deploy to Vercel →</a>
+        <a class="l5-btn l5-btn--ghost" href="{{ url_for('docs') }}#selfhost">Self-host guide</a>
       </div>
-      <div class="l3-card panel reveal">
-        <svg class="icon"><use href="#i-devices"/></svg>
-        <div><b class="mono">SELF-HOSTABLE</b>
-        <p>One Flask app, your own Supabase project, your own keys. Deploy anywhere in minutes.</p></div>
-      </div>
-      <div class="l3-card panel reveal">
-        <svg class="icon"><use href="#i-globe"/></svg>
-        <div><b class="mono">OPEN PROTOCOL</b>
-        <p>MIT licensed. Auditable. Forkable. The docs describe every endpoint and event.</p></div>
-      </div>
     </div>
+    <ol class="l5-steps">
+      <li><b>01 — Clone</b><span class="mono">git clone github.com/astrallcoorporations/phantom_</span></li>
+      <li><b>02 — Connect Supabase</b><span class="mono">set supabase_url + supabase_key in env</span></li>
+      <li><b>03 — Ship</b><span class="mono">deploy to Vercel · done in ~2 min</span></li>
+    </ol>
   </section>
 
-  <!-- ============ ICON STRIP ============ -->
-  <section class="l3-section" style="padding-top:10px">
-    <div class="l3-strip reveal">
-      <div><svg class="icon"><use href="#i-lock"/></svg><b class="mono">END-TO-END ENCRYPTED</b><p>Only you and your contacts can read the messages.</p></div>
-      <div><svg class="icon"><use href="#i-calls"/></svg><b class="mono">ENCRYPTED CALLS</b><p>Crystal clear calls protected with the same encryption.</p></div>
-      <div><svg class="icon"><use href="#i-moments"/></svg><b class="mono">DISAPPEARING MESSAGES</b><p>Messages disappear automatically. You're in control.</p></div>
-      <div><svg class="icon"><use href="#i-ghost"/></svg><b class="mono">GHOST MODE</b><p>Hide your activity. Disappear when you need to.</p></div>
-      <div><svg class="icon"><use href="#i-file"/></svg><b class="mono">SECURE FILE SHARING</b><p>Preview and run files in phantom's own console.</p></div>
-    </div>
+  <section class="l5-final">
+    <h2>Private conversations. Nothing else.</h2>
+    {% if user %}<a class="l5-btn l5-btn--blue" href="/app">Open Phantom →</a>
+    {% else %}<a class="l5-btn l5-btn--blue" href="{{ url_for('auth') }}">Get started free →</a>{% endif %}
   </section>
 
-  <!-- ============ DEVELOPERS ============ -->
-  <section class="l3-section l3-duo" id="developers">
-    <div style="align-self:center">
-      <span class="l3-label mono">&gt; DEVELOPERS TRUST PHANTOM</span>
-      <h2 class="mono" style="font-size:clamp(24px,3vw,36px);font-weight:500;color:var(--p-text);line-height:1.4;margin-top:16px">Open by design.<br>Trusted by default.</h2>
-      <p class="mono l3-sub">Open protocol. Public audits. Self-hostable.<br>Built for a privacy-first future.</p>
-      <a class="l3-play mono" href="{{ url_for('docs') }}" style="margin-top:22px">FOR DEVELOPERS →</a>
+  <footer class="l5-foot">
+    <a data-logo4 href="/">&gt; PHANTOM_</a>
+    <span>© 2026 Phantom · MIT</span>
+    <div class="l5-foot-links">
+      <a href="{{ url_for('docs') }}">Docs</a>
+      <a href="https://github.com/astrallcoorporations/phantom_" target="_blank" rel="noopener">GitHub</a>
+      <a href="mailto:pencil.insurance.buisness@gmail.com">Contact</a>
     </div>
-    <div class="termcard reveal" style="max-width:none;justify-self:stretch">
-      <span class="tc-line c-cmd">$ phantom --info</span>
-      {% for line in ['Open Protocol', 'End-to-End Encryption (X25519 + XSalsa20)', 'Open Source', 'Public Audits', 'Self-Hostable', 'No Telemetry', 'Zero Trackers'] %}
-      <span class="tc-line"><span class="c-ok">✓</span>  {{ line }}</span>
-      {% endfor %}
-      <span class="tc-line c-cmd">$ <span class="tc-caret" aria-hidden="true"></span></span>
-    </div>
-  </section>
-
-  <!-- ============ FINAL CTA ============ -->
-  <section class="l3-final">
-    <h2 class="mono reveal">Private conversations.</h2>
-    <p class="mono l3-final-dim reveal">Nothing else.</p>
-    <a class="l3-btn l3-btn--solid mono reveal" href="{{ url_for('auth') }}" style="background:var(--acc-blue);color:#fff">GET PHANTOM →</a>
-  </section>
-
-  <footer class="l3-foot mono">
-    <a href="/" data-logo4>&gt; PHANTOM_</a>
-    <div class="l3-foot-links">
-      <a href="{{ url_for('docs') }}">DOCS</a><a href="#features">PRIVACY</a>
-      <a href="mailto:pencil.insurance.buisness@gmail.com">CONTACT</a>
-    </div>
-    <span style="margin-inline-start:auto;color:var(--p-text-4)">© 2026 Phantom. All rights reserved.</span>
   </footer>
 
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>

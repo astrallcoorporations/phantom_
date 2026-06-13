@@ -287,6 +287,7 @@ def resolve_conversation(conv_id, user):
 def load_messages(sid, me):
     rows = sb_rows(lambda c: c.table("messages").select("*")
                    .eq("conversation_id", sid).order("created_at", desc=False).limit(500))
+    clr = cleared_at(me, sid) if me else 0.0
     out, expired = [], []
     now = time.time()
     for r in rows:
@@ -294,6 +295,14 @@ def load_messages(sid, me):
         if meta.get("expires") and float(meta["expires"]) < now:
             expired.append(r["id"])
             continue
+        if clr and r.get("created_at"):
+            try:
+                from datetime import datetime as _dt
+                ts = _dt.fromisoformat(r["created_at"].replace("Z", "+00:00")).timestamp()
+                if ts < clr:
+                    continue
+            except Exception:
+                pass
         out.append({
             "id": r["id"], "author": r["author"], "body": r["body"],
             "kind": r.get("kind") or "text", "meta": meta,
@@ -311,6 +320,45 @@ def load_messages(sid, me):
 # Context
 # ---------------------------------------------------------------------------
 
+def cleared_at(handle, sid):
+    rows = sb_rows(lambda c: c.table("convo_clears").select("cleared_at")
+                   .eq("handle", handle).eq("conversation_id", sid).limit(1))
+    return float(rows[0]["cleared_at"]) if rows else 0.0
+
+
+def user_dms(handle):
+    """Every DM the user has (from messages they're part of + their contacts)."""
+    if not handle:
+        return []
+    seen, out = {}, []
+    rows = sb_rows(lambda c: c.table("messages").select("conversation_id, body, kind, author, created_at, meta")
+                   .like("conversation_id", "dm:%").order("created_at", desc=True).limit(400))
+    for r in rows:
+        parts = r["conversation_id"][3:].split("__")
+        if handle not in parts:
+            continue
+        other = parts[0] if parts[1] == handle else parts[1]
+        if other in seen:
+            continue
+        seen[other] = True
+        prof = find_profile(other)
+        last = "(encrypted)" if (r.get("meta") or {}).get("e2e") else (
+            ("file: " + r["body"]) if r.get("kind") in ("file", "image") else r["body"])
+        out.append({"handle": other, "name": (prof or {}).get("display_name") or other,
+                    "last": last[:48], "ts": r.get("created_at", "")})
+    # contacts with no messages yet
+    crows = sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", handle))
+    for cr in crows:
+        h = cr["contact"]
+        if h in seen:
+            continue
+        seen[h] = True
+        prof = find_profile(h)
+        out.append({"handle": h, "name": (prof or {}).get("display_name") or h, "last": "", "ts": ""})
+    out.sort(key=lambda d: d["ts"], reverse=True)
+    return out
+
+
 def greeting():
     h = datetime.now().hour
     return ("Up late" if h < 5 else "Good morning" if h < 12
@@ -326,6 +374,7 @@ def base_context(view):
         "atmospheres": ATMOSPHERES,
         "skins": SKINS,
         "spaces": spaces,
+        "dms": user_dms(user_handle(user)) if current_user() else [],
         "conversations": [{"id": "ai", "type": "ai", "title": "Phantom AI",
                            "sub": "your private assistant", "atmosphere": "night"}],
         "ghost": session.get("ghost", False),
@@ -738,12 +787,14 @@ def api_space_create():
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "Give your space a name."}), 400
+    if len(name) > 40:
+        name = name[:40]
     atmosphere = data.get("atmosphere") if data.get("atmosphere") in ATMOSPHERES else "moon-horizon"
     skin = data.get("skin") if data.get("skin") in SKINS else "dark"
     visibility = "private" if data.get("visibility") == "private" else "public"
     me = user_handle(user)
     sid = "sp-" + uuid.uuid4().hex[:10]
-    space = {"id": sid, "name": name[:60], "atmosphere": atmosphere, "skin": skin,
+    space = {"id": sid, "name": name[:40], "atmosphere": atmosphere, "skin": skin,
              "visibility": visibility, "tagline": (data.get("tagline") or "")[:80],
              "owner": me, "created_by": me}
     try:
@@ -840,6 +891,8 @@ def send_message(conv_id):
     meta = data.get("meta") or {}
     if not body:
         return jsonify({"error": "empty message"}), 400
+    if kind == "text" and not meta.get("e2e") and len(body) > 4000:
+        body = body[:4000]
     conv = resolve_conversation(conv_id, current_user())
     if not conv or not conv.get("allowed"):
         return jsonify({"error": "no access to this conversation"}), 403
@@ -876,10 +929,20 @@ def api_conversation_clear(conv_id):
     conv = resolve_conversation(conv_id, current_user())
     if not conv:
         return jsonify({"ok": True})
-    try:
-        sb().table("messages").delete().eq("conversation_id", conv["sid"]).execute()
-    except Exception:
-        pass
+    scope = request.args.get("scope", "me")
+    me = user_handle()
+    if scope == "everyone":
+        try:
+            sb().table("messages").delete().eq("conversation_id", conv["sid"]).execute()
+        except Exception:
+            pass
+    else:  # clear for me only — record a per-user marker
+        try:
+            sb().table("convo_clears").upsert({
+                "handle": me, "conversation_id": conv["sid"], "cleared_at": time.time(),
+            }).execute()
+        except Exception:
+            pass
     return jsonify({"ok": True})
 
 

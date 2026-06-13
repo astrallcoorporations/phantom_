@@ -134,7 +134,7 @@
       </div>
       <div class="modal-body">
         <label class="field-label">Name</label>
-        <div class="field"><input type="text" name="name" placeholder="e.g. Frozen Peaks" maxlength="60" required></div>
+        <div class="field"><input type="text" name="name" placeholder="e.g. Frozen Peaks" maxlength="40" required></div>
 
         <label class="field-label">Tagline <span class="muted">(optional)</span></label>
         <div class="field"><input type="text" name="tagline" placeholder="A line that sets the mood" maxlength="80"></div>
@@ -228,6 +228,10 @@
     await sodium.ready; window.sodium = sodium;
     window.dispatchEvent(new Event("sodium-ready"));
   </script>
+  {% if sb_ready %}
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>try{window.sbClient=window.supabase.createClient("{{ sb_url }}","{{ sb_anon }}");}catch(e){}</script>
+  {% endif %}
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
