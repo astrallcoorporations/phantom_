@@ -907,6 +907,7 @@
       });
     }
 
+    document.querySelectorAll(".sys-note[data-sys='clear_request']").forEach((el) => wireSysNote(el, convId));
     initConvMenu();
     scroll.scrollTop = scroll.scrollHeight;
   }
@@ -914,6 +915,31 @@
   /* ========================================================================
      Conversation menu — clear / delete space / leave / add member
      ======================================================================== */
+
+  function wireSysNote(el, convId) {
+    const me = document.body.dataset.me || "me";
+    const by = el.dataset.by;
+    if (by === me) {
+      el.innerHTML = "You asked to clear this chat for both." +
+        '<div class="sn-wait">Waiting for them to accept…</div>' +
+        '<div class="sn-actions"><button class="btn btn--sm" data-cancel>Cancel request</button></div>';
+      el.querySelector("[data-cancel]").addEventListener("click", () => {
+        fetch("/api/messages/" + el.dataset.row, { method: "DELETE" }).then(() => window.location.reload());
+      });
+    } else {
+      el.innerHTML = "<b>@" + by + "</b> wants to clear this conversation for both of you." +
+        '<div class="sn-actions"><button class="btn btn--sm btn--solid" data-accept>Accept &amp; clear</button>' +
+        '<button class="btn btn--sm" data-decline>Decline</button></div>';
+      el.querySelector("[data-accept]").addEventListener("click", () => {
+        fetch("/api/conversations/" + encodeURIComponent(convId) + "?scope=everyone", { method: "DELETE" })
+          .then(() => window.location.reload());
+      });
+      el.querySelector("[data-decline]").addEventListener("click", () => {
+        fetch("/api/messages/" + el.dataset.row, { method: "DELETE" }).then(() => window.location.reload());
+      });
+    }
+  }
+  window.__wireSysNote = wireSysNote;
 
   function initConvMenu() {
     const btn = document.getElementById("conv-menu-btn");
@@ -932,11 +958,19 @@
     document.querySelectorAll("[data-conv-clear]").forEach((clear) =>
       clear.addEventListener("click", () => {
         const scope = clear.dataset.convClear || "me";
+        const id = (head && head.dataset.convId) || (document.getElementById("composer-form") || {}).dataset.conv;
+        const type = head ? head.dataset.convType : "";
+        if (scope === "everyone" && type === "dm") {
+          // both must agree — send a request the other person accepts
+          if (!confirm("Ask the other person to clear this chat for both of you?")) return;
+          fetch("/api/conversations/" + encodeURIComponent(id) + "/clear-request", { method: "POST" })
+            .then(() => window.location.reload());
+          return;
+        }
         const msg = scope === "everyone"
-          ? "Delete every message for BOTH people? This cannot be undone."
+          ? "Delete every message for everyone? This cannot be undone."
           : "Hide this conversation's history for you? The other person keeps theirs.";
         if (!confirm(msg)) return;
-        const id = (head && head.dataset.convId) || (document.getElementById("composer-form") || {}).dataset.conv;
         fetch("/api/conversations/" + encodeURIComponent(id) + "?scope=" + scope, { method: "DELETE" })
           .then(() => window.location.reload());
       }));

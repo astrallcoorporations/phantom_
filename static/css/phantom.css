@@ -2009,3 +2009,14 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
   .l5-features { grid-template-columns: 1fr; }
   .l5-deploy { grid-template-columns: 1fr; gap: 28px; }
 }
+
+/* clear-for-both request banner */
+.bubble-row:has(.sys-note) { max-width: 100%; width: 100%; justify-content: center; }
+.sys-note {
+  margin: 8px auto; max-width: 440px; text-align: center;
+  border: 1px solid var(--p-line); border-radius: var(--r-md);
+  background: var(--p-panel-hi); backdrop-filter: blur(var(--blur));
+  padding: 14px 16px; font-size: 13px; color: var(--p-text-2);
+}
+.sys-note .sn-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.sys-note .sn-wait { color: var(--p-text-4); font-size: 12px; margin-top: 4px; }

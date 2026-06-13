@@ -887,7 +887,7 @@ def api_messages_get(conv_id):
 def send_message(conv_id):
     data = request.json or {}
     body = (data.get("body") or "").strip()
-    kind = data.get("kind") if data.get("kind") in ("text", "file", "image", "voice") else "text"
+    kind = data.get("kind") if data.get("kind") in ("text", "file", "image", "voice", "system") else "text"
     meta = data.get("meta") or {}
     if not body:
         return jsonify({"error": "empty message"}), 400
@@ -921,6 +921,23 @@ def api_message_delete(mid):
         sb().table("messages").delete().eq("id", mid).execute()
     except Exception:
         pass
+    return jsonify({"ok": True})
+
+
+@app.post("/api/conversations/<conv_id>/clear-request")
+def api_clear_request(conv_id):
+    conv = resolve_conversation(conv_id, current_user())
+    if not conv or not conv.get("allowed") or conv.get("type") != "dm":
+        return jsonify({"error": "clear-for-both only applies to direct messages"}), 400
+    me = user_handle()
+    # one pending request at a time
+    try:
+        sb().table("messages").delete().eq("conversation_id", conv["sid"])             .contains("meta", {"action": "clear_request"}).execute()
+    except Exception:
+        pass
+    sb_insert("messages", {"conversation_id": conv["sid"], "author": me,
+                           "body": "clear_request", "kind": "system",
+                           "meta": {"action": "clear_request", "by": me}})
     return jsonify({"ok": True})
 
 

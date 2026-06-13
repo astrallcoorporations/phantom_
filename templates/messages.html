@@ -110,6 +110,8 @@
           <span>{{ m.body }}</span>
           <span class="fsize">{{ m.meta.size or 'open' }}</span>
         </button>
+        {% elif m.kind == 'system' and m.meta.action == 'clear_request' %}
+        <div class="sys-note" data-sys="clear_request" data-by="{{ m.meta.by }}" data-row="{{ m.id }}"></div>
         {% elif m.meta.e2e %}
         <div class="bubble" data-e2e="1" data-cipher="{{ m.body }}" data-nonce="{{ m.meta.nonce }}" data-spk="{{ m.meta.spk or '' }}" data-exp="{{ m.meta.expires or '' }}">decrypting…</div>
         {% else %}
@@ -246,6 +248,19 @@
 
     async function appendRemote(m) {
       if (scroll.querySelector(`[data-id="${m.id}"]`)) return;             // already shown
+      const meta0 = m.meta || {};
+      if (m.kind === "system" && meta0.action === "clear_request") {
+        const wrapRow = document.createElement("div");
+        wrapRow.className = "bubble-row"; wrapRow.dataset.id = m.id;
+        const note = document.createElement("div");
+        note.className = "sys-note"; note.dataset.sys = "clear_request";
+        note.dataset.by = meta0.by; note.dataset.row = m.id;
+        wrapRow.appendChild(note);
+        scroll.insertBefore(wrapRow, document.getElementById("remote-typing"));
+        window.__wireSysNote(note, form.dataset.conv);
+        scroll.scrollTop = scroll.scrollHeight;
+        return;
+      }
       if (m.author === me) return;                                          // own sends already rendered
       const meta = m.meta || {};
       let text = m.body;
