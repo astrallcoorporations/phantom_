@@ -146,8 +146,7 @@
 
   // ─── peer factory ─────────────────────────────────────────────────────────
   function makePeer(handle, isInitiator) {
-    const pc = new RTCPeerConnection({ iceServers });
-    peers[handle] = pc;
+    const pc = new RTCPeerConnection({ iceServers });    pc._retryCount = 0;    peers[handle] = pc;
 
     // add local tracks
     if (localStream) {
@@ -193,14 +192,28 @@
       const s = pc.connectionState;
       if (s === "connecting") setStatus("CONNECTING…");
       else if (s === "connected") setStatus("CONNECTED · E2E ACTIVE");
-      else if (s === "failed") { setStatus("CONNECTION FAILED — retrying"); try { pc.restartIce(); } catch (_) {} }
+      else if (s === "failed") {
+        if (pc._retryCount < 1) {
+          pc._retryCount += 1;
+          setStatus("CONNECTION FAILED — retrying");
+          try { pc.restartIce(); } catch (_) {}
+        } else {
+          setStatus("CONNECTION FAILED — check network or TURN server");
+          try { pc.close(); } catch (_) {}
+        }
+      }
       else if (s === "closed") removePeer(handle);
     };
     pc.oniceconnectionstatechange = () => {
       const i = pc.iceConnectionState;
       if (i === "checking") setStatus("CONNECTING…");
       else if (i === "connected" || i === "completed") setStatus("CONNECTED · E2E ACTIVE");
-      else if (i === "failed") { try { pc.restartIce(); } catch (_) {} }
+      else if (i === "failed") {
+        if (pc._retryCount < 1) {
+          pc._retryCount += 1;
+          try { pc.restartIce(); } catch (_) {}
+        }
+      }
     };
 
     return pc;

@@ -34,6 +34,9 @@ GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
 GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
 GITHUB_CLIENT_ID = (os.getenv("GITHUB_CLIENT_ID") or "").strip()
 GITHUB_CLIENT_SECRET = (os.getenv("GITHUB_CLIENT_SECRET") or "").strip()
+TURN_URLS = (os.getenv("TURN_URLS") or os.getenv("turn_urls") or "").strip()
+TURN_USERNAME = (os.getenv("TURN_USERNAME") or os.getenv("turn_username") or "").strip()
+TURN_CREDENTIAL = (os.getenv("TURN_CREDENTIAL") or os.getenv("turn_credential") or os.getenv("TURN_PASSWORD") or os.getenv("turn_password") or "").strip()
 PUBLIC_URL = (os.getenv("PUBLIC_URL") or "").strip().rstrip("/")
 
 OWNER_EMAIL = "pencil.insurance.buisness@gmail.com"
@@ -1267,6 +1270,20 @@ def api_ice():
         candidates.append(dom)
         if "_" in dom.split(".")[0]:
             candidates.append(dom.split(".")[0].replace("_", "") + "." + ".".join(dom.split(".")[1:]))
+
+    if TURN_URLS:
+        turn_servers = []
+        for url in [u.strip() for u in re.split(r"[\s,]+", TURN_URLS) if u.strip()]:
+            server = {"urls": url}
+            if TURN_USERNAME and TURN_CREDENTIAL:
+                server["username"] = TURN_USERNAME
+                server["credential"] = TURN_CREDENTIAL
+            turn_servers.append(server)
+        if turn_servers:
+            if debug:
+                diag["direct_turn"] = True
+                diag["turn_servers"] = turn_servers
+            return jsonify({"iceServers": [{"urls": "stun:stun.l.google.com:19302"}] + turn_servers})
 
     if key:
         try:
