@@ -207,6 +207,17 @@ def login_as(profile):
     }
 
 
+@app.after_request
+def _cache_static(resp):
+    p = request.path
+    if p.startswith("/static/"):
+        if p.rsplit(".", 1)[-1].lower() in ("jpg", "jpeg", "png", "webp", "ico", "mp4", "woff", "woff2", "svg"):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"   # heavy, stable assets
+        else:
+            resp.headers["Cache-Control"] = "public, max-age=300"                   # css/js: short, revalidate
+    return resp
+
+
 @app.before_request
 def guard_app():
     if app.config.get("FREEZE"):

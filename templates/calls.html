@@ -220,11 +220,30 @@
   }
 
   // ─── signaling via Supabase Realtime broadcast ────────────────────────────
-  function joinSignalChannel(convId, onReady) {
+  function joinSignalChannel(convId) {
     if (callChannel) { sb.removeChannel(callChannel); callChannel = null; }
-    callChannel = sb.channel("call:" + convId, { config: { broadcast: { self: false } } })
+    callChannel = sb.channel("call:" + convId, {
+      config: { broadcast: { self: false }, presence: { key: ME } },
+    })
       .on("broadcast", { event: "signal" }, ({ payload }) => onSignal(payload))
-      .subscribe((status) => { if (status === "SUBSCRIBED" && onReady) onReady(); });
+      .on("presence", { event: "sync" }, () => {
+        // presence reliably tells us who's in the call. The peer with the
+        // lexicographically smaller handle makes the offer (no glare, no race).
+        const state = callChannel.presenceState();
+        const others = Object.keys(state).filter((h) => h !== ME);
+        if (!others.length) { setStatus("WAITING FOR ANSWER…"); return; }
+        others.forEach((h) => {
+          if (!peers[h]) {
+            setStatus("CONNECTING…");
+            if (ME < h) callPeer(h, true);   // I offer; the other side answers
+          }
+        });
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          try { await callChannel.track({ handle: ME, at: Date.now() }); } catch (_) {}
+        }
+      });
   }
 
   function signal(payload) {
@@ -327,11 +346,10 @@
       $localVideo.hidden = false;
     }
 
-    // announce ourselves only once the signaling channel is actually subscribed
-    joinSignalChannel(convId, () => signal({ type: "call-joined", convId, callType }));
+    // join the call channel; presence sync handles offer/answer negotiation
+    joinSignalChannel(convId);
 
-    // ring each participant on their personal channel; we send the WebRTC
-    // offer only once they join the conversation channel (call-joined).
+    // ring each participant on their personal channel so they see the incoming call
     (participants || []).forEach((p) => ringPeer(p, convId, callType, title));
 
     showRoom(title);
