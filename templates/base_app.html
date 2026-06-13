@@ -227,10 +227,15 @@
     {% endfor %}
   }</script>
 
-  <script type="module">
-    import sodium from "https://esm.sh/libsodium-wrappers@0.7.15";
-    await sodium.ready; window.sodium = sodium;
-    window.dispatchEvent(new Event("sodium-ready"));
+  <script>
+    // non-blocking: dynamic import never holds the page's load event open
+    (function () {
+      import("https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/+esm")
+        .then((m) => m.default.ready.then(() => {
+          window.sodium = m.default;
+          window.dispatchEvent(new Event("sodium-ready"));
+        })).catch(function () {});
+    })();
   </script>
   {% if sb_ready %}
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

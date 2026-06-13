@@ -69,9 +69,11 @@
     </main>
   </div>
 
-  <script type="module">
-    import sodium from "https://esm.sh/libsodium-wrappers@0.7.15";
-    await sodium.ready; window.sodium = sodium;
+  <script>
+    (function () {
+      import("https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/+esm")
+        .then((m) => m.default.ready.then(() => { window.sodium = m.default; })).catch(function () {});
+    })();
   </script>
   <script src="{{ url_for('static', filename='js/phantom.js') }}"></script>
   <script>
