@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Phantom",
+  "version": "1.0.0",
+  "identifier": "chat.phantom.desktop",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Phantom",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 940,
+        "minHeight": 600,
+        "url": "https://phantom-git-main-arsh7.vercel.app",
+        "backgroundColor": "#080808"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

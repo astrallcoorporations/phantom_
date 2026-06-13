@@ -6,3 +6,8 @@ __pycache__/
 dist/
 build/
 *.spec
+
+# tauri
+phantom-tauri/node_modules/
+phantom-tauri/src-tauri/target/
+phantom-tauri/dist/
