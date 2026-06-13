@@ -154,17 +154,31 @@
       localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
     }
 
-    // on remote track → create / update tile
+    // on remote track → route audio to a dedicated <audio> sink (always plays,
+    // even when there's no video), video to the visible tile.
     pc.ontrack = (ev) => {
-      let tile = document.getElementById("tile-" + handle);
-      if (!tile) {
-        tile = buildRemoteTile(handle);
-        $grid.appendChild(tile);
+      const stream = ev.streams[0] || (function () {
+        const s = peers[handle]._rs || (peers[handle]._rs = new MediaStream());
+        s.addTrack(ev.track); return s;
+      })();
+
+      if (ev.track.kind === "audio") {
+        let aud = document.getElementById("audio-" + handle);
+        if (!aud) {
+          aud = document.createElement("audio");
+          aud.id = "audio-" + handle;
+          aud.autoplay = true; aud.playsInline = true;
+          document.body.appendChild(aud);
+        }
+        aud.srcObject = stream;
+        aud.play().catch(() => {});
       }
+
+      let tile = document.getElementById("tile-" + handle);
+      if (!tile) { tile = buildRemoteTile(handle); $grid.appendChild(tile); }
       const vid = tile.querySelector("video");
-      if (!vid.srcObject) vid.srcObject = new MediaStream();
-      vid.srcObject.addTrack(ev.track);
-      if (ev.track.kind === "video") vid.hidden = false;
+      vid.srcObject = stream;
+      if (ev.track.kind === "video") { vid.hidden = false; vid.play().catch(() => {}); }
       updateGridLayout();
     };
 
@@ -191,6 +205,8 @@
     if (peers[handle]) { peers[handle].close(); delete peers[handle]; }
     const tile = document.getElementById("tile-" + handle);
     if (tile) tile.remove();
+    const aud = document.getElementById("audio-" + handle);
+    if (aud) { aud.srcObject = null; aud.remove(); }
     updateGridLayout();
     if (Object.keys(peers).length === 0 && $room && !$room.hidden) {
       setStatus("CALL ENDED");
@@ -433,6 +449,7 @@
     clearInterval(timerInterval);
     // clear remote tiles
     $grid.querySelectorAll(".call-tile:not(.call-tile--local)").forEach(t => t.remove());
+    document.querySelectorAll("audio[id^='audio-']").forEach(a => { a.srcObject = null; a.remove(); });
     $localVideo.srcObject = null;
     $localVideo.hidden = true;
     $room.hidden = true;
@@ -452,7 +469,7 @@
     tile.className = "call-tile";
     tile.id = "tile-" + handle;
     tile.innerHTML = `
-      <video autoplay playsinline hidden></video>
+      <video autoplay playsinline muted hidden></video>
       <div class="call-tile-avatar">${handle[0].toLowerCase()}_</div>
       <div class="call-tile-label mono">${handle}</div>
     `;
