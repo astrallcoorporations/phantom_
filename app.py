@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
@@ -48,6 +48,10 @@ app.secret_key = (os.getenv("flask_secret_key") or "").strip() or "phantom-dev-k
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 31536000
 app.config["JSON_SORT_KEYS"] = False
 app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
+# Stay logged in: persistent session cookie that survives browser/app restarts
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=180)
+app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 if Compress:
     Compress(app)
 # Behind Vercel's proxy — trust the forwarded host/proto so OAuth redirects
@@ -247,6 +251,7 @@ def user_handle(user=None):
 
 
 def login_as(profile):
+    session.permanent = True          # persist across browser/app restarts
     session["user"] = {
         "handle": "@" + profile["handle"],
         "name": profile.get("display_name") or profile["handle"],
@@ -1291,6 +1296,27 @@ def api_ice():
     key = _clean(os.getenv("METERED_API_KEY"))
     debug = request.args.get("debug")
     diag = {"domain_present": bool(dom), "key_present": bool(key), "tried": [], "ok": False}
+
+    # Cloudflare TURN — the recommended free relay (1000 GB/mo). Generates
+    # short-lived credentials per call. Set CF_TURN_KEY_ID + CF_TURN_API_TOKEN.
+    cf_id = _clean(os.getenv("CF_TURN_KEY_ID"))
+    cf_tok = _clean(os.getenv("CF_TURN_API_TOKEN"))
+    if cf_id and cf_tok:
+        try:
+            resp = rq.post(
+                f"https://rtc.live.cloudflare.com/v1/turn/keys/{cf_id}/credentials/generate",
+                headers={"Authorization": "Bearer " + cf_tok},
+                json={"ttl": 86400}, timeout=8)
+            diag["tried"].append({"provider": "cloudflare", "status": resp.status_code})
+            data = resp.json()
+            if resp.ok and data.get("iceServers"):
+                diag["ok"] = True
+                if debug:
+                    return jsonify(diag)
+                return jsonify({"iceServers": [data["iceServers"],
+                                               {"urls": "stun:stun.l.google.com:19302"}]})
+        except Exception as exc:
+            diag["tried"].append({"provider": "cloudflare", "error": type(exc).__name__})
 
     # underscores are invalid in hostnames — also try without it (phantom_.x -> phantom.x)
     candidates = []

@@ -102,6 +102,8 @@
         </div>
       </div>
     </nav>
+    <div class="rail-resize" id="rail-resize" role="separator" aria-orientation="vertical"
+         aria-label="Resize sidebar (double-click to reset)" title="Drag to resize · double-click to reset"></div>
 
     <main class="main" id="main-content">
       {% block main %}{% endblock %}
@@ -199,6 +201,7 @@
         <span style="margin-inline-start:auto;display:flex;gap:4px">
           <button class="btn btn--sm" id="fv-run" hidden>
             <svg class="icon" style="width:12px;height:12px"><use href="#i-play"/></svg> Run</button>
+          <button class="btn btn--sm" id="fv-copy" hidden>Copy</button>
           <a class="btn btn--sm" id="fv-download" download hidden>Download</a>
           <button class="icon-btn" data-modal-close aria-label="Close">
             <svg class="icon"><use href="#i-close"/></svg></button>

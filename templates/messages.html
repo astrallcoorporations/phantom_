@@ -142,7 +142,11 @@
       <div class="bubble-row {{ 'me' if m.mine }}" data-id="{{ m.id }}" data-author="{{ m.author }}" data-mine="{{ '1' if m.mine else '0' }}">
         <span class="msg-pre mono" aria-hidden="true">&gt;</span>
         <span class="msg-author mono">{{ 'you' if m.mine else ('phantom-ai' if m.author == 'ai' else m.author) }}</span>
-        {% if m.kind in ('file', 'image') %}
+        {% if m.kind == 'image' and m.meta.url %}
+        <button class="bubble bubble--img" data-file-id="{{ m.id }}" data-file-name="{{ m.body }}" data-file-kind="image" data-file-meta='{{ m.meta | tojson }}'>
+          <img loading="lazy" src="{{ m.meta.url }}" alt="{{ m.body }}">
+        </button>
+        {% elif m.kind in ('file', 'image') %}
         <button class="bubble bubble--file mono" data-file-id="{{ m.id }}" data-file-name="{{ m.body }}" data-file-kind="{{ m.kind }}" data-file-meta='{{ m.meta | tojson }}'>
           <svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg>
           <span>{{ m.body }}</span>
@@ -325,6 +329,30 @@
       }
       if (m.author === me) return;                                          // own sends already rendered
       const meta = m.meta || {};
+      if ((m.kind === "image" || m.kind === "file") && meta.url) {           // shared file/image
+        const row = document.createElement("div");
+        row.className = "bubble-row";
+        row.dataset.id = m.id; row.dataset.author = m.author; row.dataset.mine = "0";
+        row.innerHTML = '<span class="msg-pre mono" aria-hidden="true">&gt;</span><span class="msg-author mono"></span>';
+        row.querySelector(".msg-author").textContent = m.author;
+        const btn = document.createElement("button");
+        btn.dataset.fileId = m.id; btn.dataset.fileName = m.body;
+        btn.dataset.fileKind = m.kind; btn.dataset.fileMeta = JSON.stringify(meta);
+        if (m.kind === "image") {
+          btn.className = "bubble bubble--img";
+          const img = document.createElement("img"); img.loading = "lazy"; img.alt = m.body || ""; img.src = meta.url;
+          btn.appendChild(img);
+        } else {
+          btn.className = "bubble bubble--file mono";
+          btn.innerHTML = '<svg class="icon" style="width:13px;height:13px"><use href="#i-file"/></svg><span></span><span class="fsize"></span>';
+          btn.children[1].textContent = m.body; btn.children[2].textContent = meta.size || "open";
+        }
+        if (window.phantom && window.phantom.openFile) btn.addEventListener("click", () => window.phantom.openFile(btn));
+        row.appendChild(btn);
+        scroll.insertBefore(row, document.getElementById("remote-typing"));
+        scroll.scrollTop = scroll.scrollHeight; hideTyping();
+        return;
+      }
       let text = m.body;
       if (meta.e2e && window.phantom.e2eDecrypt) {
         const other = meta.spk || form.dataset.peerPk || "";

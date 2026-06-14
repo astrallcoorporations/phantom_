@@ -389,10 +389,20 @@ body.ghost-on .typing, body.ghost-on .receipt { visibility: hidden; }
 
 .rail {
   display: flex; flex-direction: column;
-  width: 224px; flex: none;
+  width: var(--rail-w, 224px); flex: none;
   padding: 16px 12px;
   overflow-y: auto;
 }
+.rail-resize {
+  flex: none; width: 7px; margin: 0 -5px; align-self: stretch;
+  cursor: col-resize; border-radius: 4px; z-index: 3;
+  background: transparent; transition: background 120ms var(--ease);
+}
+.rail-resize::after { content: ""; display: block; width: 2px; height: 100%;
+  margin: 0 auto; border-radius: 2px; background: transparent; }
+.rail-resize:hover::after, body.resizing .rail-resize::after { background: var(--acc-blue); }
+body.resizing { user-select: none; cursor: col-resize; }
+.shell.rail-collapsed .rail-resize { display: none; }
 .rail-brand {
   display: flex; align-items: center; gap: 10px;
   padding: 2px 10px 16px;
@@ -2352,4 +2362,29 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
 @media (max-width: 640px) {
   .emoji-grid { grid-template-columns: repeat(7, 1fr); }
   .bubble.jumbo { font-size: 40px; }
+}
+
+/* ==========================================================================
+   v9 — inline image messages + CODE | OUTPUT file viewer
+   ========================================================================== */
+.bubble--img { padding: 3px !important; background: none !important;
+  border: 1px solid var(--p-line) !important; border-radius: 12px; overflow: hidden;
+  max-width: min(300px, 72vw); line-height: 0; cursor: zoom-in; }
+.bubble--img img { display: block; width: 100%; max-height: 340px; object-fit: cover; border-radius: 9px; }
+.bubble--img:hover { border-color: var(--acc-blue) !important; }
+
+.viewer-body.fv-body--split { display: grid; grid-template-columns: 1fr 1fr;
+  min-height: 62vh; max-height: 76vh; overflow: hidden; padding: 0; }
+.fv-pane--code { display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+  border-inline-end: 1px solid var(--p-line); }
+.fv-pane-head { font-family: var(--font-mono); font-size: 9px; letter-spacing: .2em;
+  color: var(--p-text-4); padding: 8px 18px; border-bottom: 1px solid var(--p-line); flex: none; }
+.fv-body--split .fv-pane--code .fv-code { flex: 1; overflow: auto; margin: 0; }
+.fv-body--split .fv-output { display: flex; flex-direction: column; min-width: 0; border-top: 0; overflow: hidden; }
+.fv-body--split .fv-out-bar { border-bottom: 1px solid var(--p-line); flex: none; }
+.fv-body--split .fv-run-frame { flex: 1; height: auto; min-height: 0; background: #000; }
+.fv-body--split .fv-log { flex: none; max-height: 130px; }
+@media (max-width: 760px) {
+  .viewer-body.fv-body--split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .fv-pane--code { border-inline-end: 0; border-bottom: 1px solid var(--p-line); }
 }

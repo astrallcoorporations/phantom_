@@ -184,6 +184,7 @@
     // ICE → signal
     pc.onicecandidate = (ev) => {
       if (ev.candidate) {
+        if (ev.candidate.type === "relay" || /(\s|^)relay(\s|$)/.test(ev.candidate.candidate || "")) pc._sawRelay = true;
         signal({ type: "ice", to: handle, candidate: ev.candidate });
       }
     };
@@ -193,12 +194,14 @@
       if (s === "connecting") setStatus("CONNECTING…");
       else if (s === "connected") setStatus("CONNECTED · E2E ACTIVE");
       else if (s === "failed") {
-        if (pc._retryCount < 1) {
+        if (pc._retryCount < 2) {
           pc._retryCount += 1;
-          setStatus("CONNECTION FAILED — retrying");
+          setStatus("CONNECTION FAILED — retrying (" + pc._retryCount + ")");
           try { pc.restartIce(); } catch (_) {}
         } else {
-          setStatus("CONNECTION FAILED — check network or TURN server");
+          setStatus(pc._sawRelay
+            ? "CONNECTION FAILED — check your network/firewall"
+            : "NO TURN RELAY — a TURN server is needed (see CALLS.md)");
           try { pc.close(); } catch (_) {}
         }
       }
@@ -209,7 +212,7 @@
       if (i === "checking") setStatus("CONNECTING…");
       else if (i === "connected" || i === "completed") setStatus("CONNECTED · E2E ACTIVE");
       else if (i === "failed") {
-        if (pc._retryCount < 1) {
+        if (pc._retryCount < 2) {
           pc._retryCount += 1;
           try { pc.restartIce(); } catch (_) {}
         }

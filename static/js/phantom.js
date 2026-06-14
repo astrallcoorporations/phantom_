@@ -643,7 +643,21 @@
     who.className = "msg-author mono";
     who.textContent = m.mine ? "you" : (m.author === "ai" ? "phantom-ai" : (m.author || "?"));
     row.appendChild(who);
-    if (m.kind === "file" || m.kind === "image") {
+    const imgSrc = m.kind === "image"
+      ? ((m.meta && m.meta.url) || (store.getFile(m.id) || {}).content) : null;
+    if (m.kind === "image" && imgSrc) {
+      const b = document.createElement("button");
+      b.className = "bubble bubble--img";
+      b.dataset.fileId = m.id;
+      b.dataset.fileName = m.body;
+      b.dataset.fileKind = "image";
+      b.dataset.fileMeta = JSON.stringify(m.meta || {});
+      const img = document.createElement("img");
+      img.loading = "lazy"; img.alt = m.body || ""; img.src = imgSrc;
+      b.appendChild(img);
+      b.addEventListener("click", () => openFileViewer(b));
+      row.appendChild(b);
+    } else if (m.kind === "file" || m.kind === "image") {
       const b = document.createElement("button");
       b.className = "bubble bubble--file";
       b.dataset.fileId = m.id;
@@ -1045,6 +1059,36 @@
     document.querySelector("#file-viewer .modal-head").appendChild(bar);
   }
 
+  // Code/text pane with CODE | OUTPUT split, copy + (auto)run
+  function renderCode(body, name, ext, text) {
+    const runBtn = document.getElementById("fv-run");
+    const copyBtn = document.getElementById("fv-copy");
+    const runnable = !!RUNNABLE[ext];
+    const wrap = document.createElement("div");
+    wrap.className = "fv-pane fv-pane--code";
+    const head = document.createElement("div");
+    head.className = "fv-pane-head"; head.textContent = "CODE";
+    const pre = document.createElement("pre");
+    pre.className = "fv-code"; pre.textContent = text;
+    wrap.appendChild(head); wrap.appendChild(pre); body.appendChild(wrap);
+    const out = document.createElement("div");
+    out.className = "fv-output"; out.hidden = !runnable; body.appendChild(out);
+    if (copyBtn) {
+      copyBtn.hidden = false;
+      copyBtn.onclick = () => navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = "Copied ✓";
+        setTimeout(() => (copyBtn.textContent = "Copy"), 1400);
+      }).catch(() => {});
+    }
+    if (runnable) {
+      body.classList.add("fv-body--split");
+      runBtn.hidden = false;
+      runBtn.onclick = () => runCode(RUNNABLE[ext], text, out);
+      runCode(RUNNABLE[ext], text, out);      // auto-run on open
+    }
+    attachAiFix(name, text, out);
+  }
+
   function openFileViewer(btn) {
     const modal = document.getElementById("file-viewer");
     const body = document.getElementById("fv-body");
@@ -1059,7 +1103,9 @@
     body.innerHTML = "";
     const runBtn = document.getElementById("fv-run");
     const dl = document.getElementById("fv-download");
-    runBtn.hidden = true; dl.hidden = true;
+    const copyBtn = document.getElementById("fv-copy");
+    runBtn.hidden = true; dl.hidden = true; if (copyBtn) copyBtn.hidden = true;
+    body.className = "viewer-body";
 
     const url = meta.url || (file && file.url);
     if (!file && url) {
@@ -1071,11 +1117,8 @@
       else if (type === "pdf") { const fr = document.createElement("iframe"); fr.src = url; fr.className = "fv-frame"; body.appendChild(fr); }
       else {
         const pre = document.createElement("pre"); pre.className = "fv-code"; pre.textContent = "loading…"; body.appendChild(pre);
-        const out = document.createElement("div"); out.className = "fv-output"; out.hidden = true; body.appendChild(out);
         fetch(url).then((r) => r.text()).then((txt) => {
-          pre.textContent = txt;
-          if (RUNNABLE[ext]) { runBtn.hidden = false; runBtn.onclick = () => runCode(RUNNABLE[ext], txt, out); }
-          attachAiFix(name, txt, out);
+          body.innerHTML = ""; renderCode(body, name, ext, txt);
         }).catch(() => (pre.textContent = "could not load file"));
       }
       openModal(modal);
@@ -1105,22 +1148,13 @@
       const f = document.createElement("iframe");
       f.src = file.content; f.className = "fv-frame";
       body.appendChild(f);
+    } else if (file.text) {
+      renderCode(body, name, ext, file.content);
     } else {
-      // code / text
-      const text = file.text ? file.content : "(binary file — download to view)";
       const pre = document.createElement("pre");
       pre.className = "fv-code";
-      pre.textContent = text;
+      pre.textContent = "(binary file — download to view)";
       body.appendChild(pre);
-      const out = document.createElement("div");
-      out.className = "fv-output";
-      out.hidden = true;
-      body.appendChild(out);
-      if (RUNNABLE[ext] && file.text) {
-        runBtn.hidden = false;
-        runBtn.onclick = () => runCode(RUNNABLE[ext], text, out);
-      }
-      if (file.text) attachAiFix(name, text, out);
     }
     openModal(modal);
   }
@@ -1779,6 +1813,7 @@
     initKeys();
     initRing();
     initRailToggle();
+    initRailResize();
     applyLanguage(lang, false);
     applyGhost(ghost, false);
     applyPrefs();
@@ -1918,6 +1953,43 @@
       }));
   }
 
+  function initRailResize() {
+    const handle = document.getElementById("rail-resize");
+    const shell = document.querySelector(".shell");
+    const rail = document.querySelector(".rail");
+    if (!handle || !shell || !rail) return;
+    const saved = +store.getPref("railWidth", 0);
+    if (saved >= 180 && saved <= 460) shell.style.setProperty("--rail-w", saved + "px");
+    let startX = 0, startW = 0, dragging = false;
+    const px = (e) => (e.touches ? e.touches[0].clientX : e.clientX);
+    const onMove = (e) => {
+      if (!dragging) return;
+      let w = Math.max(180, Math.min(460, startW + (px(e) - startX)));
+      shell.style.setProperty("--rail-w", w + "px");
+      if (e.cancelable) e.preventDefault();
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false; document.body.classList.remove("resizing");
+      store.setPref("railWidth", Math.round(rail.getBoundingClientRect().width));
+      removeEventListener("mousemove", onMove); removeEventListener("mouseup", onUp);
+      removeEventListener("touchmove", onMove); removeEventListener("touchend", onUp);
+    };
+    const start = (e) => {
+      if (shell.classList.contains("rail-collapsed")) return;
+      dragging = true; document.body.classList.add("resizing");
+      startX = px(e); startW = rail.getBoundingClientRect().width;
+      addEventListener("mousemove", onMove); addEventListener("mouseup", onUp);
+      addEventListener("touchmove", onMove, { passive: false }); addEventListener("touchend", onUp);
+      e.preventDefault();
+    };
+    handle.addEventListener("mousedown", start);
+    handle.addEventListener("touchstart", start, { passive: false });
+    handle.addEventListener("dblclick", () => {
+      shell.style.removeProperty("--rail-w"); store.setPref("railWidth", 224);
+    });
+  }
+
   function initRailToggle() {
     const shell = document.querySelector(".shell");
     if (!shell) return;
@@ -1930,7 +2002,7 @@
     });
   }
 
-  window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store, e2eDecrypt, fingerprintOf, phlog, jumbo: jumboify };
+  window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store, e2eDecrypt, fingerprintOf, phlog, jumbo: jumboify, openFile: openFileViewer };
 
   document.addEventListener("DOMContentLoaded", () => {
     const av = document.getElementById("nav-avatar"), menu = document.getElementById("nav-menu");
