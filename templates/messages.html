@@ -18,6 +18,31 @@
     </div>
   </div>
   <div class="convo-scroll" id="convo-list">
+    {% if requests %}
+    <div class="req-block" id="req-block">
+      <button class="req-head" id="req-toggle" aria-expanded="false">
+        <span class="req-icon"><svg class="icon" style="width:13px;height:13px"><use href="#i-people"/></svg></span>
+        <span>Message requests</span>
+        <span class="req-count">{{ requests|length }}</span>
+        <svg class="icon req-chev" viewBox="0 0 24 24" style="width:13px;height:13px;margin-inline-start:auto"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="req-list" id="req-list" hidden>
+        {% for r in requests %}
+        <div class="req-item" data-handle="{{ r.handle }}">
+          <span class="avatar" aria-hidden="true">{{ r.name[:2] | lower }}</span>
+          <div class="meta">
+            <div class="name">{{ r.name[:24] }}</div>
+            <div class="last">{{ r.last or 'wants to message you' }}</div>
+          </div>
+          <div class="req-actions">
+            <button class="req-accept" data-req-accept="{{ r.handle }}">Accept</button>
+            <button class="req-decline" data-req-decline="{{ r.handle }}" aria-label="Decline request">✕</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
     <a class="convo-item {{ 'active' if active and active.id == 'ai' }}" data-kind="ai"
        href="{{ url_for('messages', conv_id='ai') }}" {% if active and active.id == 'ai' %}aria-current="true"{% endif %}>
       <span class="avatar avatar--ai" aria-hidden="true">
@@ -60,6 +85,9 @@
     <header class="chat-head"
             data-conv-id="{{ active.id }}" data-conv-type="{{ active.type }}"
             {% if active.space %}data-space-id="{{ active.space.id }}" data-space-owner="{{ active.space.owner }}"{% endif %}>
+      <a class="chat-back" href="{{ url_for('messages') }}" aria-label="Back to conversations">
+        <svg class="icon" viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
       {% if active.type == 'ai' %}
       <span class="avatar avatar--ai" aria-hidden="true"><svg class="icon" style="width:13px;height:13px"><use href="#i-sparkle"/></svg></span>
       {% elif active.type == 'space' %}
@@ -145,6 +173,12 @@
                maxlength="4000" autocomplete="off" aria-label="Message {{ active.title }}">
         <span class="char-count" id="char-count" hidden>0</span>
         <input type="file" id="file-input" hidden aria-hidden="true" tabindex="-1">
+        <button class="icon-btn" type="button" id="emoji-btn" aria-label="Emoji and stickers" aria-haspopup="true" aria-expanded="false">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4 4 0 0 0 7 0"/>
+            <line x1="9" y1="9.5" x2="9" y2="9.5"/><line x1="15" y1="9.5" x2="15" y2="9.5"/>
+          </svg>
+        </button>
         <button class="icon-btn" type="button" id="attach-btn" aria-label="Attach file">
           <svg class="icon"><use href="#i-attach"/></svg>
         </button>
@@ -156,6 +190,14 @@
           <svg class="icon"><use href="#i-send"/></svg>
         </button>
       </form>
+      <div class="emoji-pop" id="emoji-pop" hidden role="dialog" aria-label="Emoji and stickers">
+        <div class="emoji-tabs">
+          <button type="button" class="emoji-tab active" data-emoji-tab="emoji">Emoji</button>
+          <button type="button" class="emoji-tab" data-emoji-tab="sticker">Stickers</button>
+        </div>
+        <div class="emoji-grid" id="emoji-grid" data-pane="emoji"></div>
+        <div class="emoji-grid sticker-grid" id="sticker-grid" data-pane="sticker" hidden></div>
+      </div>
     </div>
   </div>
 
@@ -296,7 +338,9 @@
       row.innerHTML = '<span class="msg-pre mono" aria-hidden="true">&gt;</span>' +
         '<span class="msg-author mono"></span><div class="bubble"></div>';
       row.querySelector(".msg-author").textContent = m.author;
-      row.querySelector(".bubble").textContent = text;
+      const bub = row.querySelector(".bubble");
+      bub.textContent = text;
+      if (window.phantom && window.phantom.jumbo) window.phantom.jumbo(bub);
       scroll.insertBefore(row, document.getElementById("remote-typing"));
       scroll.scrollTop = scroll.scrollHeight;
       hideTyping();

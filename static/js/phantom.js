@@ -616,6 +616,18 @@
     s.lastChild.style.display = state === "sent" ? "none" : "block";
   }
 
+  // emoji-only messages render large ("stickers")
+  function jumboify(b) {
+    if (!b) return;
+    const t = (b.textContent || "").trim();
+    if (!t || /[A-Za-z0-9]/.test(t)) return;
+    if ([...t].length <= 6 &&
+        /\p{Extended_Pictographic}/u.test(t) &&
+        /^[\p{Extended_Pictographic}‍️\s]+$/u.test(t)) {
+      b.classList.add("jumbo");
+    }
+  }
+
   function makeBubble(scroll, m, ctx) {
     const row = document.createElement("div");
     row.className = "bubble-row" + (m.mine ? " me" : "");
@@ -647,6 +659,7 @@
       const b = document.createElement("div");
       b.className = "bubble";
       b.textContent = m.body;
+      jumboify(b);
       row.appendChild(b);
     }
     const anchor = scroll.querySelector("#remote-typing");
@@ -693,12 +706,14 @@
       if (plain === null && b.dataset.spk && b.dataset.spk !== other)
         plain = await e2eDecrypt(b.dataset.cipher, b.dataset.nonce, b.dataset.spk);
       b.textContent = plain !== null ? plain : "\u26a0 can't decrypt on this device";
+      if (plain !== null) jumboify(b);
       if (plain === null) b.style.color = "var(--p-text-4)";
       else phlog("ok", "decrypted " + row.dataset.id.slice(0, 8));
       if (b.dataset.exp) startTtl(row, b.dataset.exp);
     });
     scroll.querySelectorAll(".bubble[data-exp]:not([data-e2e])").forEach((b) =>
       startTtl(b.closest(".bubble-row"), b.dataset.exp));
+    scroll.querySelectorAll(".bubble:not([data-e2e]):not(.bubble--file)").forEach(jumboify);
 
     // @username mention autocomplete
     let mentionPop = null;
@@ -1776,6 +1791,8 @@
     initSpaceActions();
     initPeople();
     initMessages();
+    initEmoji();
+    initRequests();
     initMoments();
     initMedia();
     initOnboarding();
@@ -1815,6 +1832,92 @@
       }).subscribe();
   }
 
+  function initEmoji() {
+    const btn = document.getElementById("emoji-btn");
+    const pop = document.getElementById("emoji-pop");
+    const form = document.getElementById("composer-form");
+    if (!btn || !pop || !form) return;
+    const input = form.querySelector("input[name=body]");
+    const grid = document.getElementById("emoji-grid");
+    const sgrid = document.getElementById("sticker-grid");
+    const EMOJIS = ("😀 😃 😄 😁 😆 😅 😂 🤣 🙂 🙃 😉 😊 😇 😍 😘 😗 😋 😛 😜 🤪 😎 🤩 🥳 🤔 🤨 😐 😶 " +
+      "😏 😴 😪 🤤 😵 🤯 🥺 😢 😭 😤 😠 😡 🤬 😳 🥵 🥶 😱 😨 😰 🤗 🤭 🤫 🫡 🙄 😬 🤐 🤥 " +
+      "😈 👿 💀 ☠️ 👻 👽 🤖 🎃 😺 😻 🙀 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💝 " +
+      "✨ ⭐ 🌟 💫 🔥 💥 💯 ✅ ❌ ⚡ 🌈 🎉 🎊 🎈 🎁 👍 👎 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 " +
+      "👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🫶 🙏 👏 🙌 💪 🦾 🤝 👀 👁️ 🧠 🫀 🦴 🫂 ☕ 🍕 🍔 🍟 🍺 🎮 💻 📱").split(" ");
+    const STICKERS = ("👻 💀 🔥 💯 🎉 😂 😭 🥺 😎 🤝 👍 ❤️ ✨ ⚡ 🤯 🫡 👀 🙏 💪 🤙 🥳 🤩 😈 🤖").split(" ");
+    EMOJIS.forEach((e) => {
+      const x = document.createElement("button");
+      x.type = "button"; x.className = "emoji-cell"; x.textContent = e;
+      x.addEventListener("click", () => {
+        input.value += e; input.focus();
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      grid.appendChild(x);
+    });
+    STICKERS.forEach((e) => {
+      const x = document.createElement("button");
+      x.type = "button"; x.className = "sticker-cell"; x.textContent = e;
+      x.addEventListener("click", () => {
+        input.value = e; close();
+        if (form.requestSubmit) form.requestSubmit();
+        else form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      });
+      sgrid.appendChild(x);
+    });
+    function close() { pop.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const show = pop.hidden;
+      pop.hidden = !show; btn.setAttribute("aria-expanded", String(show));
+    });
+    pop.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    pop.querySelectorAll("[data-emoji-tab]").forEach((t) => {
+      t.addEventListener("click", () => {
+        pop.querySelectorAll("[data-emoji-tab]").forEach((b) => b.classList.toggle("active", b === t));
+        const isE = t.dataset.emojiTab === "emoji";
+        grid.hidden = !isE; sgrid.hidden = isE;
+      });
+    });
+  }
+
+  function initRequests() {
+    const toggle = document.getElementById("req-toggle");
+    if (toggle) {
+      const list = document.getElementById("req-list");
+      const blk = document.getElementById("req-block");
+      toggle.addEventListener("click", () => {
+        const open = list.hidden;
+        list.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+        if (blk) blk.classList.toggle("open", open);
+      });
+    }
+    document.querySelectorAll("[data-req-accept]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        const h = b.dataset.reqAccept;
+        try {
+          await fetch("/api/contacts", { method: "POST",
+            headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contact: h }) });
+        } catch (e) {}
+        location.href = "/app/messages/dm-" + h;
+      }));
+    document.querySelectorAll("[data-req-decline]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const h = b.dataset.reqDecline;
+        const item = b.closest(".req-item");
+        try { await fetch("/api/conversations/dm-" + h + "?scope=me", { method: "DELETE" }); } catch (e) {}
+        if (item) item.remove();
+        const left = document.querySelectorAll(".req-item").length;
+        const cnt = document.querySelector(".req-count");
+        if (cnt) cnt.textContent = left;
+        if (!left) { const blk = document.getElementById("req-block"); if (blk) blk.remove(); }
+      }));
+  }
+
   function initRailToggle() {
     const shell = document.querySelector(".shell");
     if (!shell) return;
@@ -1827,7 +1930,7 @@
     });
   }
 
-  window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store, e2eDecrypt, fingerprintOf, phlog };
+  window.phantom = { applyLanguage, applyGhost, applyTheme, applySkin, store, e2eDecrypt, fingerprintOf, phlog, jumbo: jumboify };
 
   document.addEventListener("DOMContentLoaded", () => {
     const av = document.getElementById("nav-avatar"), menu = document.getElementById("nav-menu");

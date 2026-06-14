@@ -2290,3 +2290,66 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
   .modal { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; align-self: flex-end; }
   .modal-backdrop.open { align-items: flex-end; padding: 0; }
 }
+
+/* ==========================================================================
+   v8 — message requests + emoji/sticker picker + jumbo stickers
+   ========================================================================== */
+
+/* Message requests */
+.req-block { margin: 4px 8px 8px; border: 1px solid var(--p-line); border-radius: 12px;
+  background: color-mix(in srgb, var(--acc-blue) 6%, transparent); overflow: hidden; }
+.req-head { display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 12px;
+  background: none; border: 0; color: var(--p-text-2); font: inherit; font-size: 13px;
+  font-weight: 600; cursor: pointer; }
+.req-head:hover { color: var(--p-text-1); }
+.req-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px;
+  background: var(--acc-blue); color: #fff; flex: none; }
+.req-count { min-width: 19px; height: 19px; padding: 0 6px; border-radius: 10px; background: var(--acc-blue);
+  color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.req-chev { color: var(--p-text-4); transition: transform .18s ease; }
+.req-block.open .req-chev { transform: rotate(90deg); }
+.req-list { border-top: 1px solid var(--p-line-soft); }
+.req-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.req-item + .req-item { border-top: 1px solid var(--p-line-soft); }
+.req-item .avatar { width: 34px; height: 34px; flex: none; }
+.req-item .meta { min-width: 0; flex: 1; }
+.req-item .name { font-size: 13px; font-weight: 600; color: var(--p-text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.req-item .last { font-size: 11.5px; color: var(--p-text-4);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.req-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.req-accept { height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--acc-blue);
+  color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.req-accept:hover { filter: brightness(1.08); }
+.req-accept:disabled { opacity: .5; cursor: default; }
+.req-decline { width: 30px; height: 30px; border: 1px solid var(--p-line); border-radius: 8px;
+  background: var(--p-surface-2, transparent); color: var(--p-text-4); cursor: pointer; font-size: 13px; }
+.req-decline:hover { color: var(--p-danger); border-color: var(--p-danger); }
+
+/* Emoji + sticker picker */
+.composer { position: relative; }
+.emoji-pop { position: absolute; bottom: calc(100% + 6px); inset-inline-end: 10px; width: min(340px, calc(100vw - 28px));
+  background: var(--p-surface-1, #111); border: 1px solid var(--p-line); border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.5); z-index: 60; overflow: hidden; }
+.emoji-tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.emoji-tab { flex: 1; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--p-text-4);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.emoji-tab:hover { color: var(--p-text-2); }
+.emoji-tab.active { background: var(--p-line-soft, rgba(255,255,255,.06)); color: var(--p-text-1); }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: 8px;
+  max-height: 232px; overflow-y: auto; overscroll-behavior: contain; }
+.sticker-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px; }
+.emoji-cell, .sticker-cell { border: 0; background: none; cursor: pointer; border-radius: 8px;
+  display: grid; place-items: center; line-height: 1; }
+.emoji-cell { height: 34px; font-size: 21px; }
+.sticker-cell { aspect-ratio: 1; font-size: 40px; background: var(--p-line-soft, rgba(255,255,255,.04)); }
+.emoji-cell:hover, .sticker-cell:hover { background: var(--acc-blue); transform: scale(1.08); }
+.emoji-cell:active, .sticker-cell:active { transform: scale(.94); }
+
+/* Jumbo (emoji-only) messages */
+.bubble.jumbo { background: none !important; border: 0 !important; padding: 2px 0 !important;
+  font-size: 46px; line-height: 1.05; box-shadow: none !important; }
+@media (max-width: 640px) {
+  .emoji-grid { grid-template-columns: repeat(7, 1fr); }
+  .bubble.jumbo { font-size: 40px; }
+}

@@ -417,35 +417,60 @@ def cleared_at(handle, sid):
     return float(rows[0]["cleared_at"]) if rows else 0.0
 
 
+def _iso_ts(s):
+    """ISO-8601 string -> epoch seconds (0.0 on failure)."""
+    if not s:
+        return 0.0
+    try:
+        from datetime import datetime as _dt
+        return _dt.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
 def user_dms(handle):
-    """Every DM the user has (from messages they're part of + their contacts)."""
+    """Every DM the user has. Tags each with `request`: True when it's an
+    incoming message from someone you don't know and haven't replied to."""
     if not handle:
         return []
-    seen, out = {}, []
     rows = sb_rows(lambda c: c.table("messages").select("conversation_id, body, kind, author, created_at, meta")
                    .like("conversation_id", "dm:%").order("created_at", desc=True).limit(400))
-    pending = []
+    contacts = set(cr["contact"] for cr in
+                   sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", handle)))
+    clears = {}
+    for r in sb_rows(lambda c: c.table("convo_clears").select("conversation_id, cleared_at").eq("handle", handle)):
+        try:
+            clears[r["conversation_id"]] = float(r["cleared_at"])
+        except Exception:
+            pass
+    seen, i_authored = {}, set()       # newest row wins (rows come desc); track DMs I've spoken in
     for r in rows:
-        parts = r["conversation_id"][3:].split("__")
+        sid = r["conversation_id"]
+        parts = sid[3:].split("__")
         if handle not in parts or len(parts) != 2:
             continue
         other = parts[0] if parts[1] == handle else parts[1]
+        if r.get("author") == handle:
+            i_authored.add(other)
         if other in seen:
             continue
-        seen[other] = True
+        ts_iso = r.get("created_at", "")
+        # a declined/cleared request (or cleared stranger chat) stays hidden until they write again
+        if other not in contacts and clears.get(sid) and _iso_ts(ts_iso) < clears[sid]:
+            seen[other] = None
+            continue
         last = "(encrypted)" if (r.get("meta") or {}).get("e2e") else (
             ("file: " + r["body"]) if r.get("kind") in ("file", "image", "system") else r["body"])
-        pending.append({"handle": other, "last": last[:48], "ts": r.get("created_at", "")})
-    crows = sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", handle))
-    for cr in crows:
-        h = cr["contact"]
-        if h in seen:
-            continue
-        seen[h] = True
-        pending.append({"handle": h, "last": "", "ts": ""})
-    pmap = profiles_by_handles([d["handle"] for d in pending])
-    for d in pending:
-        d["name"] = (pmap.get(d["handle"]) or {}).get("display_name") or d["handle"]
+        seen[other] = {"handle": other, "last": last[:48], "ts": ts_iso}
+    real = {k: v for k, v in seen.items() if v}
+    for h in contacts:                 # contacts you added but never messaged
+        if h not in seen:
+            real[h] = {"handle": h, "last": "", "ts": ""}
+    pmap = profiles_by_handles(list(real))
+    out = []
+    for other, d in real.items():
+        d["name"] = (pmap.get(other) or {}).get("display_name") or other
+        d["request"] = (other not in contacts) and (other not in i_authored)
         out.append(d)
     out.sort(key=lambda d: d["ts"], reverse=True)
     return out
@@ -461,12 +486,15 @@ def base_context(view):
     user = current_user() or {"handle": "@guest", "name": "Guest", "email": "",
                               "admin": False, "guest": True}
     spaces = user_spaces(user_handle(user)) if current_user() else []
+    dms_all = (user_dms(user_handle(user))
+               if (current_user() and view in ("messages", "home")) else [])
     return {
         "view": view,
         "atmospheres": ATMOSPHERES,
         "skins": SKINS,
         "spaces": spaces,
-        "dms": user_dms(user_handle(user)) if (current_user() and view in ("messages", "home")) else [],
+        "dms": [d for d in dms_all if not d.get("request")],
+        "requests": [d for d in dms_all if d.get("request")],
         "conversations": [{"id": "ai", "type": "ai", "title": "Phantom AI",
                            "sub": "your private assistant", "atmosphere": "night"}],
         "ghost": session.get("ghost", False),
