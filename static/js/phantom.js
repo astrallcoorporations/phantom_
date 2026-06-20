@@ -95,7 +95,7 @@
 
   const I18N = {
     en: { home: "Home", messages: "Messages", spaces: "Spaces", moments: "Moments",
-          people: "People", calls: "Calls", media: "Media", settings: "Settings", search: "Search",
+          people: "People", calls: "Calls", apps: "Apps", media: "Media", settings: "Settings", search: "Search",
           ghost_mode: "Ghost mode", on: "ON", off: "OFF", pinned: "Pinned",
           message_placeholder: "Message…", send: "Send", delivered: "delivered",
           recent: "Recent", active_spaces: "Active spaces",
