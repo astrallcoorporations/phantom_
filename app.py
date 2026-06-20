@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
@@ -80,6 +81,17 @@ def sb_insert(table, row):
             c.table(table).insert(row).execute()
     except Exception:
         pass
+
+
+_io_pool = ThreadPoolExecutor(max_workers=8)
+
+
+def run_parallel(**tasks):
+    """Run independent, request-context-free DB reads concurrently.
+    Each task is a zero-arg callable that must NOT touch flask.session/g
+    (those are thread-local). Returns {name: result}."""
+    futs = {k: _io_pool.submit(v) for k, v in tasks.items()}
+    return {k: f.result() for k, f in futs.items()}
 
 
 def sb_rows(query_fn, default=None):
@@ -269,8 +281,14 @@ def _cache_static(resp):
             resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"   # heavy, stable assets
         else:
             resp.headers["Cache-Control"] = "public, max-age=300"                   # css/js: short, revalidate
-    elif p in ("/", "/docs", "/download"):
-        resp.headers["Cache-Control"] = "public, max-age=300"
+    elif p == "/":
+        # Marketing page renders no per-user content — let Vercel's CDN serve it
+        # so cold starts never hit the visitor. Mobile/desktop variants cache apart.
+        resp.headers["Cache-Control"] = "public, max-age=60, s-maxage=600, stale-while-revalidate=86400"
+        resp.headers["Vary"] = "Accept-Encoding, User-Agent"
+    elif p in ("/docs", "/download"):
+        resp.headers["Cache-Control"] = "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800"
+        resp.headers["Vary"] = "Accept-Encoding"
     elif p in ("/manifest.webmanifest", "/.well-known/assetlinks.json"):
         resp.headers["Cache-Control"] = "public, max-age=86400"  # stable manifest links
     return resp
@@ -490,9 +508,19 @@ def greeting():
 def base_context(view):
     user = current_user() or {"handle": "@guest", "name": "Guest", "email": "",
                               "admin": False, "guest": True}
-    spaces = user_spaces(user_handle(user)) if current_user() else []
-    dms_all = (user_dms(user_handle(user))
-               if (current_user() and view in ("messages", "home")) else [])
+    # Sidebar spaces + DMs are independent reads — fetch them concurrently
+    # (resolve session-dependent values here, on the request thread, first).
+    logged_in = current_user() is not None
+    handle = user_handle(user)
+    want_dms = logged_in and view in ("messages", "home")
+    if logged_in:
+        res = run_parallel(
+            spaces=(lambda: user_spaces(handle)),
+            dms=((lambda: user_dms(handle)) if want_dms else (lambda: [])),
+        )
+        spaces, dms_all = res["spaces"], res["dms"]
+    else:
+        spaces, dms_all = [], []
     return {
         "view": view,
         "atmospheres": ATMOSPHERES,
