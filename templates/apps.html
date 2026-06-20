@@ -1,0 +1,110 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — apps{% endblock %}
+
+{% block main %}
+<div class="content panel" style="flex:1">
+  <div class="content-inner">
+    <div class="page-head" style="display:flex;align-items:flex-end;gap:16px">
+      <div>
+        <h1>Apps</h1>
+        <p class="page-sub">Play apps &amp; games built by the community — some are multiplayer. Build your own and publish it.</p>
+      </div>
+      <a class="btn btn--solid" href="{{ url_for('apps_new') }}" style="margin-inline-start:auto">
+        <svg class="icon" style="width:13px;height:13px"><use href="#i-plus"/></svg> Publish an app
+      </a>
+    </div>
+
+    {% if user.admin and pending %}
+    <section class="apps-section">
+      <span class="label">PENDING REVIEW · {{ pending|length }}</span>
+      <div class="apps-grid">
+        {% for a in pending %}
+        <div class="app-card app-card--pending" data-app-id="{{ a.id }}">
+          <a class="app-card-main" href="{{ url_for('app_play', slug=a.slug) }}">
+            <span class="app-ico">{{ '🐍' if a.kind == 'python' else '🎮' }}</span>
+            <div class="app-meta">
+              <div class="app-title">{{ a.title }}</div>
+              <div class="app-tag">{{ a.tagline or 'No description' }}</div>
+              <div class="app-by mono">@{{ a.author }} · {{ a.kind }}</div>
+            </div>
+          </a>
+          <div class="app-mod">
+            <a class="btn btn--sm" href="{{ url_for('app_play', slug=a.slug) }}">Preview</a>
+            <button class="btn btn--sm btn--solid" data-app-approve="{{ a.id }}">Approve</button>
+            <button class="btn btn--sm" data-app-reject="{{ a.id }}">Reject</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if mine %}
+    <section class="apps-section">
+      <span class="label">YOUR APPS</span>
+      <div class="apps-grid">
+        {% for a in mine %}
+        <div class="app-card" data-app-id="{{ a.id }}">
+          <a class="app-card-main" href="{{ url_for('app_play', slug=a.slug) }}">
+            <span class="app-ico">{{ '🐍' if a.kind == 'python' else '🎮' }}</span>
+            <div class="app-meta">
+              <div class="app-title">{{ a.title }}</div>
+              <div class="app-by mono">
+                <span class="app-status app-status--{{ a.status }}">{{ a.status }}</span> · {{ a.plays or 0 }} plays
+              </div>
+            </div>
+          </a>
+          <button class="icon-btn" data-app-delete="{{ a.id }}" aria-label="Delete app" title="Delete">
+            <svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg>
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="apps-section">
+      <span class="label">DISCOVER</span>
+      {% if apps %}
+      <div class="apps-grid">
+        {% for a in apps %}
+        <a class="app-card app-card--link" href="{{ url_for('app_play', slug=a.slug) }}">
+          <span class="app-ico">{{ '🐍' if a.kind == 'python' else '🎮' }}</span>
+          <div class="app-meta">
+            <div class="app-title">{{ a.title }}</div>
+            <div class="app-tag">{{ a.tagline or 'No description' }}</div>
+            <div class="app-by mono">@{{ a.author }} · {{ a.plays or 0 }} plays</div>
+          </div>
+          <svg class="icon app-play-ico" style="width:16px;height:16px"><use href="#i-play"/></svg>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="apps-empty">
+        <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+        <h2>No apps yet</h2>
+        <p>Be the first — publish an HTML/JS or Python app and it'll appear here once approved.</p>
+        <a class="btn btn--solid" href="{{ url_for('apps_new') }}">Publish the first app</a>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  async function post(url) { try { const r = await fetch(url, { method: "POST" }); return r.ok; } catch (e) { return false; } }
+  document.querySelectorAll("[data-app-approve]").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true; if (await post("/api/apps/" + b.dataset.appApprove + "/approve")) location.reload();
+  }));
+  document.querySelectorAll("[data-app-reject]").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true; if (await post("/api/apps/" + b.dataset.appReject + "/reject")) b.closest(".app-card").remove();
+  }));
+  document.querySelectorAll("[data-app-delete]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("Delete this app?")) return;
+    try { await fetch("/api/apps/" + b.dataset.appDelete, { method: "DELETE" }); } catch (e) {}
+    b.closest(".app-card").remove();
+  }));
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{{ app.title }} — phantom_</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
+  <style>
+    html, body { height: 100%; margin: 0; background: #050506; color: var(--p-text, #eaeaf0); }
+    .runner { display: flex; flex-direction: column; height: 100dvh; }
+    .runner-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+      padding-top: calc(8px + env(safe-area-inset-top)); border-bottom: 1px solid var(--p-line, #1c1c22);
+      background: rgba(8,8,12,.9); backdrop-filter: blur(10px); flex: none; }
+    .runner-bar .back { display: inline-flex; align-items: center; gap: 6px; color: var(--p-text-3, #9aa);
+      text-decoration: none; font: 600 13px system-ui; padding: 6px 8px; border-radius: 8px; }
+    .runner-bar .back:hover { color: var(--p-text, #fff); background: rgba(255,255,255,.05); }
+    .runner-title { min-width: 0; line-height: 1.2; }
+    .runner-title b { display: block; font: 600 14px system-ui; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .runner-title span { font: 11px ui-monospace, monospace; color: var(--p-text-4, #667); }
+    .runner-actions { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; }
+    .runner-stage { flex: 1; min-height: 0; position: relative; background: #000; }
+    .runner-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+  </style>
+</head>
+<body>
+  <div class="runner">
+    <header class="runner-bar">
+      <a class="back" href="{{ url_for('apps_view') }}">‹ Apps</a>
+      <div class="runner-title">
+        <b>{{ app.title }}</b>
+        <span>@{{ app.author }} · {{ app.kind }}{% if app.status != 'approved' %} · {{ app.status }}{% endif %}</span>
+      </div>
+      <div class="runner-actions">
+        {% if user.admin and app.status != 'approved' %}
+        <button class="btn btn--sm btn--solid" id="approve">Approve</button>
+        {% endif %}
+        {% if user.admin or app.author == my_handle %}
+        <button class="btn btn--sm" id="del">Delete</button>
+        {% endif %}
+        <button class="btn btn--sm" id="reload" title="Restart">↻ Restart</button>
+        <button class="btn btn--sm" id="full" title="Fullscreen">⛶</button>
+      </div>
+    </header>
+    <div class="runner-stage" id="stage"></div>
+  </div>
+
+  <script>
+    var APP_SRC  = {{ app.code | tojson }};
+    var APP_KIND = {{ app.kind | tojson }};
+    var SLUG = {{ app.slug | tojson }}, ME = {{ my_handle | tojson }};
+    var SB_URL = {{ sb_url | tojson }}, SB_ANON = {{ sb_anon | tojson }};
+    var APP_ID = {{ app.id | tojson }};
+
+    // Injected into every app: realtime multiplayer + identity, no access to Phantom itself.
+    function sdkHeader() {
+      return '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"><\/script>'
+        + '<script>(function(){'
+        + 'var ME=' + JSON.stringify(ME) + ',SLUG=' + JSON.stringify(SLUG) + ',U=' + JSON.stringify(SB_URL) + ',K=' + JSON.stringify(SB_ANON) + ';'
+        + 'var cl=(window.supabase&&U)?window.supabase.createClient(U,K):null;'
+        + 'window.Phantom={me:ME,room:function(id){'
+        + 'var topic="app:"+SLUG+":"+(id||"lobby"),H={};'
+        + 'var ch=cl?cl.channel(topic,{config:{broadcast:{self:false},presence:{key:ME}}}):null;'
+        + 'if(ch){ch.on("broadcast",{event:"m"},function(p){var d=p.payload||{};(H[d.e]||[]).forEach(function(f){try{f(d.d,d.f)}catch(_){}})});ch.subscribe();}'
+        + 'return{'
+        + 'send:function(e,d){if(ch)ch.send({type:"broadcast",event:"m",payload:{e:e,d:d,f:ME}});return this},'
+        + 'on:function(e,cb){(H[e]=H[e]||[]).push(cb);return this},'
+        + 'track:function(meta){if(ch)ch.track(meta||{name:ME});return this},'
+        + 'presence:function(){return ch?ch.presenceState():{}},'
+        + 'onPresence:function(cb){if(ch)ch.on("presence",{event:"sync"},function(){cb(ch.presenceState())});return this},'
+        + 'leave:function(){if(ch&&cl)cl.removeChannel(ch)}};}};'
+        + '})();<\/script>';
+    }
+
+    function pyDoc() {
+      return '<!doctype html><meta charset="utf-8">'
+        + '<style>body{margin:0;background:#0a0a0c;color:#cdd6e0;font:13px/1.55 ui-monospace,monospace;padding:14px}#o{white-space:pre-wrap;word-break:break-word}</style>'
+        + '<div id="o">starting python…</div>'
+        + sdkHeader()
+        + '<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"><\/script>'
+        + '<script>var SRC=' + JSON.stringify(APP_SRC) + ';'
+        + 'var o=document.getElementById("o"),W=function(t){o.textContent+=t};'
+        + '(async function(){o.textContent="";var py=await loadPyodide();'
+        + 'py.setStdout({batched:W});py.setStderr({batched:W});'
+        + 'try{py.globals.set("PHANTOM",window.Phantom)}catch(_){}'
+        + 'try{await py.runPythonAsync(SRC)}catch(e){W("\\n"+String(e))}})();<\/script>';
+    }
+
+    var stage = document.getElementById("stage");
+    function build() {
+      stage.innerHTML = "";
+      var f = document.createElement("iframe");
+      f.className = "runner-frame";
+      f.setAttribute("sandbox", "allow-scripts allow-pointer-lock allow-modals allow-popups allow-forms allow-downloads");
+      f.setAttribute("allow", "fullscreen; gamepad; autoplay; accelerometer");
+      f.srcdoc = (APP_KIND === "python") ? pyDoc() : (sdkHeader() + APP_SRC);
+      stage.appendChild(f);
+    }
+    build();
+
+    try { fetch("/api/apps/" + APP_ID + "/play", { method: "POST" }); } catch (e) {}
+
+    document.getElementById("reload").addEventListener("click", build);
+    document.getElementById("full").addEventListener("click", function () {
+      if (stage.requestFullscreen) stage.requestFullscreen().catch(function () {});
+    });
+    var ap = document.getElementById("approve");
+    if (ap) ap.addEventListener("click", async function () {
+      ap.disabled = true;
+      try { await fetch("/api/apps/" + APP_ID + "/approve", { method: "POST" }); } catch (e) {}
+      location.href = "/app/apps";
+    });
+    var del = document.getElementById("del");
+    if (del) del.addEventListener("click", async function () {
+      if (!confirm("Delete this app?")) return;
+      try { await fetch("/api/apps/" + APP_ID, { method: "DELETE" }); } catch (e) {}
+      location.href = "/app/apps";
+    });
+  </script>
+</body>
+</html>

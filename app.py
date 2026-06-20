@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from dotenv import load_dotenv
-from flask import (Flask, g, jsonify, redirect, render_template, request,
+from flask import (Flask, abort, g, jsonify, redirect, render_template, request,
                    session, url_for)
 import re
 try:
@@ -726,6 +726,138 @@ def people_view():
 def calls_view():
     ctx = base_context("calls")
     return render_template("calls.html", **ctx)
+
+
+# ---------------------------------------------------------------------------
+# Apps — a marketplace where people publish HTML/CSS/JS (and in-browser
+# Python via Pyodide) apps & games. Sandboxed iframe play; optional realtime
+# multiplayer via the injected Phantom SDK. Admin approves submissions.
+# ---------------------------------------------------------------------------
+
+def slugify(s):
+    s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
+    return (s or "app")[:40]
+
+
+def get_app(slug):
+    rows = sb_rows(lambda c: c.table("apps").select("*").eq("slug", slug).limit(1))
+    return rows[0] if rows else None
+
+
+def list_apps(status="approved", author=None, limit=80):
+    def q(c):
+        sel = c.table("apps").select(
+            "id, slug, title, tagline, author, kind, plays, status, created_at")
+        if status:
+            sel = sel.eq("status", status)
+        if author:
+            sel = sel.eq("author", author)
+        return sel.order("created_at", desc=True).limit(limit)
+    return sb_rows(q) or []
+
+
+@app.route("/app/apps")
+def apps_view():
+    ctx = base_context("apps")
+    ctx["apps"] = list_apps("approved")
+    ctx["pending"] = list_apps("pending") if ctx["user"].get("admin") else []
+    ctx["mine"] = (list_apps(status=None, author=ctx["my_handle"], limit=40)
+                   if current_user() else [])
+    return render_template("apps.html", **ctx)
+
+
+@app.route("/app/apps/new")
+def apps_new():
+    if not current_user():
+        return redirect(url_for("auth"))
+    return render_template("app_submit.html", **base_context("apps"))
+
+
+@app.route("/app/apps/<slug>")
+def app_play(slug):
+    ctx = base_context("apps")
+    a = get_app(slug)
+    if not a:
+        abort(404)
+    if a["status"] != "approved" and not ctx["user"].get("admin") and a["author"] != ctx["my_handle"]:
+        abort(403)
+    ctx["app"] = a
+    return render_template("app_play.html", **ctx)
+
+
+@app.post("/api/apps")
+def api_app_create():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Sign in to publish an app."}), 401
+    d = request.json or {}
+    title = (d.get("title") or "").strip()[:60]
+    code = d.get("code") or ""
+    kind = d.get("kind") if d.get("kind") in ("html", "python") else "html"
+    if not title:
+        return jsonify({"error": "Give your app a title."}), 400
+    if not code.strip():
+        return jsonify({"error": "Add your app's code."}), 400
+    if len(code) > 400000:
+        return jsonify({"error": "App is too large (400 KB max)."}), 400
+    slug = slugify(title) + "-" + uuid.uuid4().hex[:5]
+    row = {"slug": slug, "title": title, "tagline": (d.get("tagline") or "").strip()[:120],
+           "author": user_handle(user), "kind": kind, "code": code, "status": "pending"}
+    try:
+        sb().table("apps").insert(row).execute()
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:160]}), 500
+    return jsonify({"ok": True, "slug": slug})
+
+
+@app.post("/api/apps/<aid>/approve")
+def api_app_approve(aid):
+    user = current_user()
+    if not user or not user.get("admin"):
+        return jsonify({"error": "Admins only."}), 403
+    try:
+        sb().table("apps").update({"status": "approved"}).eq("id", aid).execute()
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:160]}), 500
+    return jsonify({"ok": True})
+
+
+@app.post("/api/apps/<aid>/reject")
+def api_app_reject(aid):
+    user = current_user()
+    if not user or not user.get("admin"):
+        return jsonify({"error": "Admins only."}), 403
+    try:
+        sb().table("apps").update({"status": "rejected"}).eq("id", aid).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/apps/<aid>")
+def api_app_delete(aid):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    rows = sb_rows(lambda c: c.table("apps").select("author").eq("id", aid).limit(1))
+    if rows and rows[0]["author"] != user_handle(user) and not user.get("admin"):
+        return jsonify({"error": "You can only delete your own apps."}), 403
+    try:
+        sb().table("apps").delete().eq("id", aid).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.post("/api/apps/<aid>/play")
+def api_app_play(aid):
+    rows = sb_rows(lambda c: c.table("apps").select("plays").eq("id", aid).limit(1))
+    if rows:
+        try:
+            sb().table("apps").update({"plays": (rows[0].get("plays") or 0) + 1}).eq("id", aid).execute()
+        except Exception:
+            pass
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------

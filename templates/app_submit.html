@@ -1,0 +1,113 @@
+{% extends "base_app.html" %}
+{% block title %}phantom_ — publish app{% endblock %}
+
+{% block main %}
+<div class="content panel" style="flex:1">
+  <div class="content-inner" style="max-width:880px;margin:0 auto">
+    <div class="page-head">
+      <h1>Publish an app</h1>
+      <p class="page-sub">HTML/CSS/JS or in-browser Python. Apps run sandboxed. Add multiplayer with the built-in
+        <code>Phantom.room()</code> API. Submissions are reviewed before they go live.</p>
+    </div>
+
+    <div class="auth-error" id="pub-error" role="alert" hidden></div>
+
+    <form id="pub-form" class="pub-form">
+      <label class="field-label">Title</label>
+      <div class="field"><input type="text" name="title" maxlength="60" placeholder="Neon Survivor" required></div>
+
+      <label class="field-label">Tagline</label>
+      <div class="field"><input type="text" name="tagline" maxlength="120" placeholder="A fast-paced arena shooter"></div>
+
+      <label class="field-label">Type</label>
+      <div class="seg" role="tablist">
+        <button type="button" class="seg-btn active" data-kind="html">HTML / JS</button>
+        <button type="button" class="seg-btn" data-kind="python">Python</button>
+      </div>
+
+      <label class="field-label" style="display:flex;align-items:center;gap:10px">
+        Code
+        <button type="button" class="btn btn--sm" id="load-example" style="margin-inline-start:auto">Load multiplayer example</button>
+      </label>
+      <textarea name="code" id="pub-code" class="pub-code mono" spellcheck="false"
+                placeholder="Paste your full HTML document (or Python script)…" required></textarea>
+
+      <details class="pub-help">
+        <summary>Multiplayer &amp; the Phantom API</summary>
+        <p>Every app gets a global <code>Phantom</code> object:</p>
+        <pre class="mono">const room = Phantom.room("lobby");       // join a shared room
+room.on("move", (data, from) =&gt; { ... });  // receive
+room.send("move", { x: 10, y: 5 });        // broadcast to everyone else
+room.onPresence(state =&gt; { ... });         // who's here (live)
+room.track({ name: Phantom.me });          // announce yourself
+Phantom.me                                  // your @handle</pre>
+        <p>It's backed by realtime websockets, so two players on different
+           devices stay in sync. Python apps reach it via <code>PHANTOM</code> (from Pyodide).</p>
+      </details>
+
+      <button class="btn btn--solid mono" type="submit" style="width:100%;height:46px;margin-top:14px">Submit for review</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const form = document.getElementById("pub-form");
+  const err = document.getElementById("pub-error");
+  const code = document.getElementById("pub-code");
+  let kind = "html";
+  document.querySelectorAll(".seg-btn").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+    kind = b.dataset.kind;
+  }));
+
+  const EXAMPLE_HTML = `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  body{margin:0;background:#07070b;color:#eaeaf0;font:14px system-ui;overflow:hidden;height:100vh}
+  #c{display:block} .hud{position:fixed;top:10px;left:12px;font:12px monospace;color:#7fd}
+</style></head><body>
+<div class="hud" id="hud">connecting…</div>
+<canvas id="c"></canvas>
+<script>
+  const cv=document.getElementById('c'),x=cv.getContext('2d');
+  function size(){cv.width=innerWidth;cv.height=innerHeight} size(); onresize=size;
+  const me=Phantom.me, others={}; let my={x:innerWidth/2,y:innerHeight/2};
+  const room=Phantom.room('lobby');
+  room.track({name:me});
+  room.on('pos',(d,from)=>{ others[from]=d; });
+  room.onPresence(st=>{ document.getElementById('hud').textContent=Object.keys(st).length+' players online'; });
+  onmousemove=e=>{ my.x=e.clientX; my.y=e.clientY; room.send('pos',my); };
+  (function loop(){ x.clearRect(0,0,cv.width,cv.height);
+    x.fillStyle='#13e0c4'; x.beginPath(); x.arc(my.x,my.y,14,0,7); x.fill();
+    x.fillStyle='#ff6ad5'; for(const k in others){const o=others[k]; x.beginPath(); x.arc(o.x,o.y,12,0,7); x.fill();}
+    requestAnimationFrame(loop); })();
+<\/script></body></html>`;
+
+  const EXAMPLE_PY = `# Python runs in your browser via Pyodide.
+# Reach multiplayer + your handle through PHANTOM (the same API as JS).
+print("Hello from Python!")
+print("You are:", PHANTOM.me)
+
+room = PHANTOM.room("lobby")
+room.send("hi", {"msg": "a new player joined"})
+room.on("hi", lambda data, frm: print(frm, "says", data.msg))
+`;
+
+  document.getElementById("load-example").addEventListener("click", () => {
+    code.value = kind === "python" ? EXAMPLE_PY : EXAMPLE_HTML;
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    const payload = { title: form.title.value, tagline: form.tagline.value, kind, code: code.value };
+    try {
+      const r = await fetch("/api/apps", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (!r.ok) { err.textContent = d.error || "Could not submit."; err.hidden = false; return; }
+      location.href = "/app/apps";
+    } catch { err.textContent = "Could not reach the server."; err.hidden = false; }
+  });
+})();
+</script>
+{% endblock %}
