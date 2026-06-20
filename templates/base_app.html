@@ -6,6 +6,9 @@
   <title>{% block title %}phantom_{% endblock %}</title>
   <script>try{var p=(JSON.parse(localStorage.getItem("phantom.db.v1")||"{}").prefs||{}).skin||"dark";if(p==="onyx")p="midnight";if(p==="contrast")p="dark";document.documentElement.dataset.skin=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  {% if sb_url %}<link rel="preconnect" href="{{ sb_url }}" crossorigin>{% endif %}
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
   <link rel="manifest" href="/manifest.webmanifest">

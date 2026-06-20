@@ -571,16 +571,21 @@ def manifest():
 def service_worker():
     from flask import Response
     sw = """
-const CACHE = 'phantom-v1';
+const CACHE = 'phantom-v2';
 self.addEventListener('install', (e) => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (e) => e.waitUntil(
+  caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  // cache-first for static assets, network-first for everything else
+  // stale-while-revalidate for static: instant from cache, refresh in background
   if (url.pathname.startsWith('/static/')) {
     e.respondWith(caches.open(CACHE).then((c) =>
-      c.match(e.request).then((hit) => hit || fetch(e.request).then((r) => { c.put(e.request, r.clone()); return r; }))));
+      c.match(e.request).then((hit) => {
+        const net = fetch(e.request).then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
+        return hit || net;
+      })));
   } else {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
   }
