@@ -132,6 +132,9 @@
             {% elif active.type == 'space' %}
             <button class="danger" data-leave-space="{{ active.space.id }}"><svg class="icon" style="width:13px;height:13px"><use href="#i-logout"/></svg> Leave space</button>
             {% endif %}
+            {% if active.type == 'dm' and active.peer %}
+            <button class="danger" data-block="{{ active.peer }}"><svg class="icon" style="width:13px;height:13px"><use href="#i-shield"/></svg> Block &amp; report</button>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -422,6 +425,13 @@
     const el = document.getElementById(id);
     if (el) el.addEventListener("click", () => launchCall(el));
   });
+  // Block & report a person
+  document.querySelectorAll("[data-block]").forEach((b) => b.addEventListener("click", async () => {
+    const who = b.dataset.block;
+    if (!confirm("Block @" + who + "? They won't be able to message you, and they'll be removed from your contacts.")) return;
+    try { await fetch("/api/block", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: who }) }); } catch (e) {}
+    location.href = "/app/messages";
+  }));
 })();
 </script>
 {% endblock %}

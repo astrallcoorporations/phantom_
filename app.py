@@ -303,7 +303,36 @@ def _cache_static(resp):
         resp.headers["Vary"] = "Accept-Encoding"
     elif p in ("/manifest.webmanifest", "/.well-known/assetlinks.json"):
         resp.headers["Cache-Control"] = "public, max-age=86400"  # stable manifest links
+    # security headers on every response (cheap, broad protection)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    resp.headers.setdefault("X-XSS-Protection", "0")
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Spam control — lightweight per-IP/per-user rate limiting. Best-effort on
+# serverless (per-instance memory) but blocks bursty abuse from one source.
+# ---------------------------------------------------------------------------
+
+_rl_hits = {}
+
+
+def _client_ip():
+    fwd = request.headers.get("X-Forwarded-For", "")
+    return (fwd.split(",")[0].strip() if fwd else request.remote_addr) or "?"
+
+
+def rate_limit(bucket, limit, window):
+    """Return True if the caller is over `limit` actions per `window` seconds."""
+    key = (bucket, user_handle() or _client_ip())
+    now = time.time()
+    hits = [t for t in _rl_hits.get(key, []) if now - t < window]
+    hits.append(now)
+    _rl_hits[key] = hits[-limit - 5:]            # cap memory
+    return len(hits) > limit
 
 
 @app.before_request
@@ -472,6 +501,8 @@ def user_dms(handle):
                    .like("conversation_id", "dm:%").order("created_at", desc=True).limit(400))
     contacts = set(cr["contact"] for cr in
                    sb_rows(lambda c: c.table("contacts").select("contact").eq("owner", handle)))
+    blocked = set(b["blocked"] for b in
+                  sb_rows(lambda c: c.table("blocks").select("blocked").eq("owner", handle)))
     clears = {}
     for r in sb_rows(lambda c: c.table("convo_clears").select("conversation_id, cleared_at").eq("handle", handle)):
         try:
@@ -485,6 +516,8 @@ def user_dms(handle):
         if handle not in parts or len(parts) != 2:
             continue
         other = parts[0] if parts[1] == handle else parts[1]
+        if other in blocked:               # hide people you've blocked
+            continue
         if r.get("author") == handle:
             i_authored.add(other)
         if other in seen:
@@ -1099,6 +1132,8 @@ def api_profile_update():
 
 @app.post("/api/signup")
 def api_signup():
+    if rate_limit("signup", 5, 3600):
+        return jsonify({"error": "Too many sign-ups from here. Try again later."}), 429
     data = request.json or {}
     username = (data.get("username") or "").strip().lstrip("@").lower()
     email = (data.get("email") or "").strip().lower()
@@ -1284,6 +1319,43 @@ def api_contacts_remove(handle):
     return jsonify({"ok": True})
 
 
+def is_blocked(owner, who):
+    """True if `owner` has blocked `who`."""
+    if not owner or not who:
+        return False
+    return bool(sb_rows(lambda c: c.table("blocks").select("id")
+                        .eq("owner", owner).eq("blocked", who).limit(1)))
+
+
+@app.post("/api/block")
+def api_block():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    who = ((request.json or {}).get("handle") or "").strip().lstrip("@").lower()
+    if not who or who == user_handle(user):
+        return jsonify({"error": "No one to block."}), 400
+    sb_insert("blocks", {"owner": user_handle(user), "blocked": who})
+    try:    # blocking also removes them as a contact
+        sb().table("contacts").delete().eq("owner", user_handle(user)).eq("contact", who).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/block/<handle>")
+def api_unblock(handle):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    try:
+        sb().table("blocks").delete().eq("owner", user_handle(user)) \
+            .eq("blocked", handle.lstrip("@").lower()).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
 @app.post("/api/dm")
 def api_dm():
     user = current_user()
@@ -1406,6 +1478,8 @@ def api_messages_get(conv_id):
 
 @app.post("/api/conversations/<conv_id>/messages")
 def send_message(conv_id):
+    if rate_limit("msg", 30, 10):
+        return jsonify({"error": "Slow down a moment."}), 429
     data = request.json or {}
     body = (data.get("body") or "").strip()
     kind = data.get("kind") if data.get("kind") in ("text", "file", "image", "voice", "system") else "text"
@@ -1417,6 +1491,8 @@ def send_message(conv_id):
     conv = resolve_conversation(conv_id, current_user())
     if not conv or not conv.get("allowed"):
         return jsonify({"error": "no access to this conversation"}), 403
+    if conv.get("type") == "dm" and conv.get("peer") and is_blocked(conv["peer"], user_handle()):
+        return jsonify({"error": "You can't message this person."}), 403
     if conv.get("local"):
         return jsonify({"id": "local", "ok": True})  # stays client-side
     me = user_handle() or "me"
