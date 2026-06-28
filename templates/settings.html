@@ -62,9 +62,20 @@
             <span class="mono" style="font-size:12px;color:var(--p-text-3)">{{ user.email }}</span>
           </div>
           <div class="setting-row">
-            <div><div class="t">Username</div></div>
+            <div><div class="t">Username</div><div class="d">Your @handle. Lowercase letters, numbers and underscores.</div></div>
+            {% if user.guest %}
             <span class="mono" style="font-size:12px;color:var(--p-text-3)">{{ user.handle }}</span>
+            {% else %}
+            <div class="handle-edit">
+              <div class="field" style="margin:0"><span class="mono" style="color:var(--p-text-4)">@</span>
+                <input type="text" id="handle-input" value="{{ user.handle.lstrip('@') }}" maxlength="24"
+                       autocomplete="off" spellcheck="false" aria-label="Username" style="width:140px">
+              </div>
+              <button class="btn btn--sm btn--solid" id="handle-save" disabled>Save</button>
+            </div>
+            {% endif %}
           </div>
+          <div class="handle-msg mono" id="handle-msg" hidden></div>
         </section>
 
         <section class="panel panel-pad" data-pane="privacy" role="tabpanel" aria-label="Privacy" hidden>
@@ -280,6 +291,40 @@
       navigator.clipboard.writeText(localStorage.getItem("phantom_pk") || "").catch(() => {});
       ex.textContent = "Copied ✓";
     });
+
+    // change @handle
+    const hi = document.getElementById("handle-input");
+    const hs = document.getElementById("handle-save");
+    const hm = document.getElementById("handle-msg");
+    if (hi && hs) {
+      const original = hi.value.toLowerCase();
+      let t;
+      const show = (msg, ok) => { hm.hidden = false; hm.textContent = msg; hm.className = "handle-msg mono " + (ok ? "ok" : "bad"); };
+      hi.addEventListener("input", () => {
+        clearTimeout(t);
+        const v = hi.value.trim().toLowerCase().replace(/^@/, "");
+        hi.value = v;
+        if (v === original) { hs.disabled = true; hm.hidden = true; return; }
+        if (!/^[a-z0-9_]{2,24}$/.test(v)) { hs.disabled = true; show("2–24 chars: a–z, 0–9, _", false); return; }
+        hs.disabled = true;
+        t = setTimeout(async () => {
+          const r = await fetch("/api/users/find?q=" + encodeURIComponent(v)).then((x) => x.json()).catch(() => ({ results: [] }));
+          const taken = r.results.some((u) => u.handle === v);
+          if (taken) { show("✕ @" + v + " is taken", false); hs.disabled = true; }
+          else { show("✓ @" + v + " is available", true); hs.disabled = false; }
+        }, 300);
+      });
+      hs.addEventListener("click", async () => {
+        hs.disabled = true; show("Saving…", true);
+        try {
+          const r = await fetch("/api/profile/handle", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ handle: hi.value.trim().toLowerCase() }) });
+          const d = await r.json();
+          if (r.ok) { show("✓ Username changed to " + d.handle, true); setTimeout(() => location.reload(), 900); }
+          else show(d.error || "Could not change username.", false);
+        } catch (e) { show("Could not reach the server.", false); }
+      });
+    }
   })();
 </script>
 {% endblock %}

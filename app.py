@@ -768,6 +768,14 @@ def messages(conv_id=None):
         # right info panel: peer profile + recent shared media
         if conv["type"] == "dm" and conv.get("peer"):
             conv["peer_profile"] = find_profile(conv["peer"])
+        if conv["type"] == "space" and conv.get("space"):
+            handles = sorted(_load_space_members(conv["space"]["id"]).get(conv["space"]["id"], set()))
+            pmap = profiles_by_handles(handles)
+            owner = conv["space"].get("owner")
+            conv["members_list"] = [{
+                "handle": h, "name": (pmap.get(h) or {}).get("display_name") or h,
+                "is_owner": h == owner,
+            } for h in handles]
         conv["media"] = [m for m in msgs if m["kind"] in ("file", "image")][-4:]
     elif conv:
         conv["messages"] = []
@@ -1356,6 +1364,76 @@ def api_unblock(handle):
     return jsonify({"ok": True})
 
 
+@app.post("/api/profile/handle")
+def api_change_handle():
+    """Change your @handle and cascade the rename across all tables."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    if user.get("guest"):
+        return jsonify({"error": "Create an account first to pick a username."}), 403
+    new = ((request.json or {}).get("handle") or "").strip().lstrip("@").lower()
+    old = user_handle(user)
+    if not re.match(r"^[a-z0-9_]{2,24}$", new):
+        return jsonify({"error": "2–24 characters: letters, numbers, underscores."}), 400
+    if new == old:
+        return jsonify({"ok": True, "handle": "@" + new})
+    if find_profile(new):
+        return jsonify({"error": "That username is taken."}), 409
+    c = sb()
+    if not c:
+        return jsonify({"error": "Cloud profiles unavailable."}), 503
+
+    def _swap(table, col, eqval=old, to=new):
+        try:
+            c.table(table).update({col: to}).eq(col, eqval).execute()
+        except Exception:
+            pass
+    # the profile + simple single-column references
+    _swap("profiles", "handle")
+    _swap("messages", "author")
+    _swap("contacts", "owner")
+    _swap("contacts", "contact")
+    _swap("space_members", "handle")
+    _swap("blocks", "owner")
+    _swap("blocks", "blocked")
+    _swap("moments", "author")
+    _swap("convo_clears", "handle")
+    # rewrite dm:/ai: conversation ids that embed the handle (keep thread history)
+    def _rewrite_conv(cid):
+        if cid == "ai:" + old:
+            return "ai:" + new
+        if cid.startswith("dm:"):
+            parts = cid[3:].split("__")
+            if old in parts and len(parts) == 2:
+                other = parts[0] if parts[1] == old else parts[1]
+                return dm_storage_id(new, other)
+        return None
+    msg_rows = sb_rows(lambda cl: cl.table("messages").select("id, conversation_id")
+                       .or_(f"conversation_id.like.dm:%{old}%,conversation_id.eq.ai:{old}")) or []
+    for r in msg_rows:
+        nc = _rewrite_conv(r.get("conversation_id") or "")
+        if nc and nc != r["conversation_id"]:
+            try:
+                c.table("messages").update({"conversation_id": nc}).eq("id", r["id"]).execute()
+            except Exception:
+                pass
+    # convo_clears has a composite key (handle, conversation_id) — match on both
+    clr_rows = sb_rows(lambda cl: cl.table("convo_clears").select("conversation_id").eq("handle", new)) or []
+    for r in clr_rows:
+        nc = _rewrite_conv(r.get("conversation_id") or "")
+        if nc and nc != r["conversation_id"]:
+            try:
+                c.table("convo_clears").update({"conversation_id": nc}) \
+                    .eq("handle", new).eq("conversation_id", r["conversation_id"]).execute()
+            except Exception:
+                pass
+    session["user"]["handle"] = "@" + new
+    if hasattr(g, "_pcache"):
+        g._pcache = {}
+    return jsonify({"ok": True, "handle": "@" + new})
+
+
 @app.post("/api/dm")
 def api_dm():
     user = current_user()
@@ -1432,6 +1510,24 @@ def api_space_add_member(sid):
         return jsonify({"error": "No one found with that username."}), 404
     sb_insert("space_members", {"space_id": sid, "handle": h, "role": "member"})
     return jsonify({"ok": True, "added": "@" + h})
+
+
+@app.delete("/api/spaces/<sid>/members/<handle>")
+def api_space_remove_member(sid, handle):
+    user = current_user()
+    sp = get_space(sid)
+    if not sp:
+        return jsonify({"error": "no such space"}), 404
+    h = handle.lstrip("@").lower()
+    if not user or (sp.get("owner") != user_handle(user)):
+        return jsonify({"error": "Only the owner can remove members."}), 403
+    if h == sp.get("owner"):
+        return jsonify({"error": "The owner can't be removed."}), 400
+    try:
+        sb().table("space_members").delete().eq("space_id", sid).eq("handle", h).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 @app.delete("/api/spaces/<sid>")

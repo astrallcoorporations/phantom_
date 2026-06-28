@@ -120,6 +120,9 @@
                 data-type="video">
           <svg class="icon"><use href="#i-video"/></svg>
         </button>
+        <button class="icon-btn info-toggle" id="info-toggle" aria-label="Toggle info panel" title="Show/hide details">
+          <svg class="icon"><use href="#i-info"/></svg>
+        </button>
         <div class="menu-wrap">
           <button class="icon-btn" id="conv-menu-btn" aria-label="Conversation options" aria-haspopup="true" aria-expanded="false">
             <svg class="icon" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
@@ -270,6 +273,23 @@
     <span class="label">SPACE</span>
     <p class="info-about">{{ active.space.tagline or 'A space for your people.' }}</p>
     <p class="mono info-joined">{{ active.space.visibility }} · {{ active.sub }}</p>
+  </div>
+  <div class="info-block">
+    <span class="label">MEMBERS · {{ active.members_list|length }}</span>
+    <div class="member-list">
+      {% for mem in active.members_list %}
+      <div class="member-row">
+        <span class="avatar" aria-hidden="true">{{ mem.name[:2] | lower }}</span>
+        <span class="member-name">{{ mem.name }}</span>
+        {% if mem.is_owner %}<span class="member-tag mono">owner</span>{% endif %}
+        {% if active.space.owner == my_handle and not mem.is_owner %}
+        <button class="icon-btn member-kick" data-kick="{{ mem.handle }}" data-space="{{ active.space.id }}" aria-label="Remove" title="Remove">
+          <svg class="icon" style="width:12px;height:12px"><use href="#i-close"/></svg>
+        </button>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
 
@@ -425,6 +445,24 @@
     const el = document.getElementById(id);
     if (el) el.addEventListener("click", () => launchCall(el));
   });
+  // Collapse / expand the right info panel (persisted) — less "in your face"
+  (function () {
+    const t = document.getElementById("info-toggle");
+    if (!t) return;
+    const KEY = "phantom.infoHidden";
+    if (localStorage.getItem(KEY) === "1") { document.body.classList.add("info-hidden"); t.classList.add("active"); }
+    t.addEventListener("click", () => {
+      const hidden = document.body.classList.toggle("info-hidden");
+      t.classList.toggle("active", hidden);
+      try { localStorage.setItem(KEY, hidden ? "1" : "0"); } catch (e) {}
+    });
+  })();
+  // Remove a space member (owner only)
+  document.querySelectorAll("[data-kick]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("Remove @" + b.dataset.kick + " from this space?")) return;
+    try { await fetch("/api/spaces/" + b.dataset.space + "/members/" + b.dataset.kick, { method: "DELETE" }); } catch (e) {}
+    const row = b.closest(".member-row"); if (row) row.remove();
+  }));
   // Block & report a person
   document.querySelectorAll("[data-block]").forEach((b) => b.addEventListener("click", async () => {
     const who = b.dataset.block;

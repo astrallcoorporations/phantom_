@@ -2518,3 +2518,24 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
   border-radius: 9px; background: var(--p-accent-soft); color: var(--acc); }
 .moment-card .moment-del:hover { color: var(--acc); }
 .moment-card .moment-note { font-size: 15px; }
+
+/* v14 — collapsible info panel + space members */
+body.info-hidden .info-col { display: none; }
+.info-toggle.active { color: var(--acc); background: var(--p-accent-soft); }
+.member-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.member-row { display: flex; align-items: center; gap: 9px; padding: 6px 4px; border-radius: 8px; }
+.member-row:hover { background: var(--p-panel-hi); }
+.member-row .avatar { width: 28px; height: 28px; flex: none; }
+.member-name { font-size: 13px; color: var(--p-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.member-tag { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--acc);
+  background: var(--p-accent-soft); padding: 2px 6px; border-radius: 5px; }
+.member-kick { width: 26px; height: 26px; color: var(--p-text-4); opacity: 0; transition: opacity .12s; }
+.member-row:hover .member-kick { opacity: 1; }
+.member-kick:hover { color: var(--p-danger); }
+
+/* v14b — handle change in settings */
+.handle-edit { display: flex; align-items: center; gap: 8px; }
+.handle-edit .field { background: var(--p-surface-2); }
+.handle-msg { font-size: 11px; margin-top: 6px; padding-inline: 2px; letter-spacing: .02em; }
+.handle-msg.ok { color: var(--acc-green); }
+.handle-msg.bad { color: var(--p-danger); }
