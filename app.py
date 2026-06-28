@@ -40,9 +40,15 @@ TURN_USERNAME = (os.getenv("TURN_USERNAME") or os.getenv("turn_username") or "")
 TURN_CREDENTIAL = (os.getenv("TURN_CREDENTIAL") or os.getenv("turn_credential") or os.getenv("TURN_PASSWORD") or os.getenv("turn_password") or "").strip()
 PUBLIC_URL = (os.getenv("PUBLIC_URL") or "").strip().rstrip("/")
 
-OWNER_EMAIL = "pencil.insurance.buisness@gmail.com"
+OWNER_EMAIL = "animedevelopment58@gmail.com"
 ADMIN_HANDLE = "totoandhenry"
 ADMIN_FIRST_PASSWORD = "phantom-admin"
+# Emails that automatically get owner/admin rights (e.g. on Google sign-in)
+ADMIN_EMAILS = {"animedevelopment58@gmail.com"}
+
+
+def is_admin_identity(handle=None, email=None):
+    return (handle and handle == ADMIN_HANDLE) or (email and email.lower() in ADMIN_EMAILS)
 
 app = Flask(__name__)
 app.secret_key = (os.getenv("flask_secret_key") or "").strip() or "phantom-dev-key"
@@ -264,11 +270,18 @@ def user_handle(user=None):
 
 def login_as(profile):
     session.permanent = True          # persist across browser/app restarts
+    admin = bool(profile.get("is_admin")) or is_admin_identity(profile.get("handle"), profile.get("email"))
+    # promote known admin emails/handles in the DB too, so it sticks
+    if admin and not profile.get("is_admin"):
+        try:
+            sb().table("profiles").update({"is_admin": True}).eq("handle", profile["handle"]).execute()
+        except Exception:
+            pass
     session["user"] = {
         "handle": "@" + profile["handle"],
         "name": profile.get("display_name") or profile["handle"],
         "email": profile.get("email") or "",
-        "admin": bool(profile.get("is_admin")),
+        "admin": admin,
         "guest": bool(profile.get("is_guest")),
     }
 
@@ -282,10 +295,9 @@ def _cache_static(resp):
         else:
             resp.headers["Cache-Control"] = "public, max-age=300"                   # css/js: short, revalidate
     elif p == "/":
-        # Marketing page renders no per-user content — let Vercel's CDN serve it
-        # so cold starts never hit the visitor. Mobile/desktop variants cache apart.
-        resp.headers["Cache-Control"] = "public, max-age=60, s-maxage=600, stale-while-revalidate=86400"
-        resp.headers["Vary"] = "Accept-Encoding, User-Agent"
+        # "/" redirects signed-in users into the app, so it must run per-request
+        # (not CDN-cached). Anonymous render is still fast (region-pinned + light).
+        resp.headers["Cache-Control"] = "no-store"
     elif p in ("/docs", "/download"):
         resp.headers["Cache-Control"] = "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800"
         resp.headers["Vary"] = "Accept-Encoding"
@@ -550,6 +562,8 @@ def base_context(view):
 
 @app.route("/")
 def landing():
+    if current_user():                     # already signed in → straight into the app
+        return redirect(url_for("home"))
     ua = (request.headers.get('User-Agent') or '')
     mobile_re = re.compile(r'Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini', re.I)
     if mobile_re.search(ua):
@@ -1095,7 +1109,7 @@ def api_signup():
         return jsonify({"error": "That email already has an account."}), 409
     profile = {"handle": username, "display_name": data.get("name") or username,
                "email": email, "password_hash": generate_password_hash(password),
-               "is_admin": username == ADMIN_HANDLE}
+               "is_admin": is_admin_identity(username, email)}
     try:
         sb().table("profiles").insert(profile).execute()
     except Exception as exc:
@@ -1177,7 +1191,7 @@ def google_callback():
         if find_profile(handle):
             handle += uuid.uuid4().hex[:4]
         profile = {"handle": handle, "display_name": info.get("name") or handle,
-                   "email": email, "is_admin": handle == ADMIN_HANDLE}
+                   "email": email, "is_admin": is_admin_identity(handle, email)}
         sb_insert("profiles", profile)
     login_as(profile)
     return redirect(url_for("home"))
@@ -1218,7 +1232,7 @@ def github_callback():
         if find_profile(handle):
             handle += uuid.uuid4().hex[:4]
         profile = {"handle": handle, "display_name": gh.get("name") or handle,
-                   "email": (email or "").lower() or None, "is_admin": handle == ADMIN_HANDLE}
+                   "email": (email or "").lower() or None, "is_admin": is_admin_identity(handle, email)}
         sb_insert("profiles", profile)
     login_as(profile)
     return redirect(url_for("home"))
