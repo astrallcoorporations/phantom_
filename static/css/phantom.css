@@ -2445,3 +2445,35 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
   border-radius: 0 0 14px 14px; overflow: hidden; }
 .jitsi-wrap iframe { width: 100% !important; height: 100% !important; border: 0; display: block; }
 @media (max-width: 640px) { .jitsi-wrap { border-radius: 0; } }
+
+/* ==========================================================================
+   v12 — Moments feed (post text/photo, 24h ephemeral)
+   ========================================================================== */
+.moment-composer { padding: 14px; margin-bottom: 18px; border-radius: 14px; }
+.moment-composer textarea { width: 100%; border: 0; background: none; resize: none;
+  color: var(--p-text); font: inherit; font-size: 15px; line-height: 1.5; outline: none; }
+.moment-composer-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.moment-preview { position: relative; margin-top: 10px; max-width: 300px; }
+.moment-preview img { width: 100%; border-radius: 10px; display: block; }
+.moment-preview-x { position: absolute; top: 6px; inset-inline-end: 6px; width: 24px; height: 24px;
+  border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; font-size: 12px; }
+.moment-atms { display: flex; gap: 5px; }
+.moment-atm { width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--p-line);
+  background-size: cover; background-position: center; cursor: pointer; opacity: .5; transition: opacity .12s; }
+.moment-atm.active { opacity: 1; border-color: var(--acc-blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc-blue) 40%, transparent); }
+#moment-count { font-family: var(--font-mono); font-size: 11px; color: var(--p-text-4); position: static; }
+
+.moments-feed { display: flex; flex-direction: column; gap: 12px; }
+.moment-card { position: relative; padding: 14px 16px 14px 18px; border-radius: 14px; overflow: hidden; }
+.moment-accent { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; width: 3px;
+  background-size: cover; background-position: center; opacity: .85; }
+.moment-card-head { display: flex; align-items: center; gap: 10px; }
+.moment-card-head .avatar { width: 32px; height: 32px; flex: none; }
+.moment-who { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.moment-who b { font-size: 13.5px; color: var(--p-text-1); }
+.moment-when { font-size: 10.5px; color: var(--p-text-4); letter-spacing: .04em; }
+.moment-del { margin-inline-start: auto; color: var(--p-text-4); width: 30px; height: 30px; }
+.moment-del:hover { color: var(--p-danger); }
+.moment-note { margin: 10px 0 0; font-size: 15px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.moment-img { margin-top: 10px; max-width: 100%; max-height: 440px; border-radius: 10px; display: block; }

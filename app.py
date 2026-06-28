@@ -736,9 +736,63 @@ def spaces_view():
     return render_template("spaces.html", **ctx)
 
 
+def recent_moments(hours=24, limit=60):
+    """Everyone's moments from the last `hours` hours, newest first, with author."""
+    cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+    rows = sb_rows(lambda c: c.table("moments").select("*")
+                   .gte("created_at", cutoff).order("created_at", desc=True).limit(limit))
+    pmap = profiles_by_handles([r.get("author") for r in rows if r.get("author")])
+    out = []
+    for r in rows:
+        prof = pmap.get(r.get("author")) or {}
+        r["author_name"] = prof.get("display_name") or r.get("author") or "someone"
+        out.append(r)
+    return out
+
+
 @app.route("/app/moments")
 def moments_view():
-    return render_template("moments.html", **base_context("moments"))
+    ctx = base_context("moments")
+    ctx["moments"] = recent_moments()
+    return render_template("moments.html", **ctx)
+
+
+@app.post("/api/moments")
+def api_moment_create():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Sign in to post a moment."}), 401
+    d = request.json or {}
+    note = (d.get("note") or "").strip()[:500]
+    media_url = (d.get("media_url") or "").strip()[:600]
+    if not note and not media_url:
+        return jsonify({"error": "Write something or add a photo."}), 400
+    atmosphere = d.get("atmosphere") if d.get("atmosphere") in ATMOSPHERES else "glass-cube"
+    row = {"author": user_handle(user), "title": (user.get("name") or "")[:60],
+           "note": note, "media_url": media_url, "atmosphere": atmosphere,
+           "kind": "image" if media_url else "text"}
+    try:
+        res = sb().table("moments").insert(row).execute()
+        new = (res.data or [row])[0]
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:160]}), 500
+    new["author_name"] = user.get("name") or user_handle(user)
+    return jsonify({"ok": True, "moment": new}), 201
+
+
+@app.delete("/api/moments/<mid>")
+def api_moment_delete(mid):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "not signed in"}), 401
+    rows = sb_rows(lambda c: c.table("moments").select("author").eq("id", mid).limit(1))
+    if rows and rows[0].get("author") not in (user_handle(user), None) and not user.get("admin"):
+        return jsonify({"error": "You can only delete your own moments."}), 403
+    try:
+        sb().table("moments").delete().eq("id", mid).execute()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 @app.route("/app/people")

@@ -1198,44 +1198,104 @@
      ======================================================================== */
 
   function initMoments() {
-    const host = document.getElementById("pinned-moments");
-    if (!host) return;
+    const feed = document.getElementById("moments-feed");
+    if (!feed) return;
     const empty = document.getElementById("moments-empty");
-    const pins = store.getPins();
-    if (!pins.length) return;
-    if (empty) empty.hidden = true;
 
-    const section = document.createElement("section");
-    section.className = "tl-group";
-    const lbl = document.createElement("span");
-    lbl.className = "label";
-    lbl.textContent = t("pinned_by_you");
-    section.appendChild(lbl);
-    pins.forEach((p) => {
-      const art = document.createElement("article");
-      art.className = "moment";
-      art.dataset.kind = p.kind;
-      art.innerHTML =
-        '<span class="atmosphere" aria-hidden="true"></span>' +
-        '<span class="kind"></span><div style="min-width:0"><div class="title"></div><div class="note"></div></div>' +
-        '<span class="source"></span>';
-      art.querySelector(".atmosphere").classList.add("atm-" + p.atmosphere);
-      art.querySelector(".kind").textContent = p.kind;
-      art.querySelector(".title").textContent = p.title;
-      art.querySelector(".note").textContent = p.note;
-      art.querySelector(".source").textContent = p.source;
-      section.appendChild(art);
-    });
-    host.prepend(section);
+    function timeAgo(ts) {
+      if (!ts) return "now";
+      const d = (Date.now() - new Date(ts).getTime()) / 1000;
+      if (d < 60) return "just now";
+      if (d < 3600) return Math.floor(d / 60) + "m";
+      if (d < 86400) return Math.floor(d / 3600) + "h";
+      return Math.floor(d / 86400) + "d";
+    }
+    function stamp() {
+      document.querySelectorAll(".moment-when[data-ts]").forEach((el) => { el.textContent = timeAgo(el.dataset.ts); });
+    }
+    stamp(); setInterval(stamp, 60000);
 
-    document.querySelectorAll("[data-moment-tab]").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll("[data-moment-tab]").forEach((b) => b.setAttribute("aria-selected", String(b === tab)));
-        const f = tab.dataset.momentTab;
-        host.querySelectorAll(".moment").forEach((m) => {
-          m.style.display = f === "all" || m.dataset.kind === f ? "" : "none";
+    function wireDelete(scope) {
+      scope.querySelectorAll("[data-del]").forEach((b) => {
+        if (b._wired) return; b._wired = 1;
+        b.addEventListener("click", async () => {
+          const card = b.closest(".moment-card");
+          try { await fetch("/api/moments/" + b.dataset.del, { method: "DELETE" }); } catch (e) {}
+          if (card) card.remove();
+          if (empty && !feed.querySelector(".moment-card")) empty.hidden = false;
         });
       });
+    }
+    wireDelete(document);
+
+    function addCard(m) {
+      const mine = m.author === ME;
+      const art = document.createElement("article");
+      art.className = "moment-card panel"; art.dataset.id = m.id; art.dataset.kind = m.kind || "text";
+      art.innerHTML =
+        '<span class="moment-accent atm-' + (m.atmosphere || "glass-cube") + '" aria-hidden="true"></span>' +
+        '<header class="moment-card-head"><span class="avatar"></span>' +
+        '<div class="moment-who"><b></b><span class="mono moment-when" data-ts="' + (m.created_at || "") + '"></span></div>' +
+        (mine ? '<button class="icon-btn moment-del" data-del="' + m.id + '" aria-label="Delete"><svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg></button>' : "") +
+        "</header>" +
+        (m.note ? '<p class="moment-note"></p>' : "") +
+        (m.media_url ? '<img class="moment-img" loading="lazy" alt="">' : "");
+      art.querySelector(".avatar").textContent = (m.author_name || "?").slice(0, 2).toLowerCase();
+      art.querySelector(".moment-who b").textContent = m.author_name || m.author || "someone";
+      art.querySelector(".moment-when").textContent = timeAgo(m.created_at);
+      if (m.note) art.querySelector(".moment-note").textContent = m.note;
+      if (m.media_url) art.querySelector(".moment-img").src = m.media_url;
+      wireDelete(art);
+      feed.prepend(art);
+      if (empty) empty.hidden = true;
+    }
+
+    const form = document.getElementById("moment-form");
+    if (!form) return;
+    const note = document.getElementById("moment-note");
+    const fileInput = document.getElementById("moment-file");
+    const preview = document.getElementById("moment-preview");
+    const previewImg = document.getElementById("moment-preview-img");
+    const count = document.getElementById("moment-count");
+    let mediaUrl = "", atmosphere = "glass-cube", uploading = false;
+
+    document.getElementById("moment-attach").addEventListener("click", () => fileInput.click());
+    document.getElementById("moment-preview-x").addEventListener("click", () => {
+      mediaUrl = ""; preview.hidden = true; fileInput.value = "";
+    });
+    fileInput.addEventListener("change", async () => {
+      const f = fileInput.files[0]; if (!f) return;
+      if (!window.sbClient) { alert("Photo upload needs a connection."); return; }
+      uploading = true; previewImg.src = URL.createObjectURL(f); preview.hidden = false;
+      try {
+        const path = (ME || "u") + "/moments/" + Date.now() + "_" + f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const up = await window.sbClient.storage.from("files").upload(path, f, { upsert: true, contentType: f.type });
+        if (!up.error) mediaUrl = window.sbClient.storage.from("files").getPublicUrl(path).data.publicUrl;
+      } catch (e) {}
+      uploading = false;
+    });
+    document.querySelectorAll(".moment-atm").forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll(".moment-atm").forEach((x) => x.classList.toggle("active", x === b));
+      atmosphere = b.dataset.atm;
+    }));
+    function upd() { const n = note.value.length; count.textContent = n ? (500 - n) : ""; }
+    note.addEventListener("input", upd); upd();
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const body = note.value.trim();
+      if (!body && !mediaUrl) return;
+      if (uploading) { alert("Still uploading the photo…"); return; }
+      const post = document.getElementById("moment-post"); post.disabled = true;
+      try {
+        const r = await fetch("/api/moments", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: body, media_url: mediaUrl, atmosphere }) });
+        const d = await r.json();
+        if (r.ok && d.moment) addCard(d.moment);
+        else if (d.error) alert(d.error);
+        note.value = ""; mediaUrl = ""; preview.hidden = true; fileInput.value = ""; upd();
+      } catch (e) {}
+      post.disabled = false;
     });
   }
 
