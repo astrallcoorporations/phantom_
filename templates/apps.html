@@ -21,7 +21,7 @@
         {% for a in pending %}
         <div class="app-card app-card--pending" data-app-id="{{ a.id }}">
           <a class="app-card-main" href="{{ url_for('app_play', slug=a.slug) }}">
-            <span class="app-ico">{{ '🐍' if a.kind == 'python' else '🎮' }}</span>
+            <span class="app-ico"><svg class="icon" style="width:22px;height:22px"><use href="#i-apps"/></svg></span>
             <div class="app-meta">
               <div class="app-title">{{ a.title }}</div>
               <div class="app-tag">{{ a.tagline or 'No description' }}</div>
@@ -46,7 +46,7 @@
         {% for a in mine %}
         <div class="app-card" data-app-id="{{ a.id }}">
           <a class="app-card-main" href="{{ url_for('app_play', slug=a.slug) }}">
-            <span class="app-ico">{{ '🐍' if a.kind == 'python' else '🎮' }}</span>
+            <span class="app-ico"><svg class="icon" style="width:22px;height:22px"><use href="#i-apps"/></svg></span>
             <div class="app-meta">
               <div class="app-title">{{ a.title }}</div>
               <div class="app-by mono">
@@ -69,7 +69,7 @@
       <div class="apps-grid">
         {% for a in apps %}
         <a class="app-card app-card--link" href="{{ url_for('app_play', slug=a.slug) }}">
-          <span class="app-ico">{{ '🐍' if a.kind == 'python' else '🎮' }}</span>
+          <span class="app-ico"><svg class="icon" style="width:22px;height:22px"><use href="#i-apps"/></svg></span>
           <div class="app-meta">
             <div class="app-title">{{ a.title }}</div>
             <div class="app-tag">{{ a.tagline or 'No description' }}</div>

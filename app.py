@@ -214,20 +214,20 @@ def gemini_client():
 # ---------------------------------------------------------------------------
 
 ATMOSPHERES = {
-    "moon-horizon": {"label": "Moon Horizon", "src": "img/web/moon.jpg"},
-    "deep-space":   {"label": "Deep Space",   "src": "img/web/milkyway.jpg"},
-    "frozen-peaks": {"label": "Frozen Peaks", "src": "img/web/ridge.jpg"},
-    "black-ocean":  {"label": "Black Ocean",  "src": "img/web/ocean.jpg"},
-    "cloud-sea":    {"label": "Cloud Sea",    "src": "img/web/valley.jpg"},
-    "orbit":        {"label": "Orbit",        "src": "img/web/orbit.jpg"},
+    "moon-horizon": {"label": "Moonlight", "src": "img/web/moon.jpg"},
+    "deep-space":   {"label": "Galaxy",   "src": "img/web/milkyway.jpg"},
+    "frozen-peaks": {"label": "Snow", "src": "img/web/ridge.jpg"},
+    "black-ocean":  {"label": "Ocean",  "src": "img/web/ocean.jpg"},
+    "cloud-sea":    {"label": "Clouds",    "src": "img/web/valley.jpg"},
+    "orbit":        {"label": "Space",        "src": "img/web/orbit.jpg"},
     "nebula":       {"label": "Nebula",       "src": "img/web/nebula.jpg"},
-    "starfield":    {"label": "Starfield",    "src": "img/web/stars.jpg"},
+    "starfield":    {"label": "Stars",    "src": "img/web/stars.jpg"},
     "fog":          {"label": "Fog",          "src": "img/web/fog.jpg"},
     "night":        {"label": "Night",        "src": "img/web/night.jpg"},
-    "glass-desert": {"label": "Glass Desert", "src": "img/atm/glass-desert.jpg"},
-    "glass-cube":   {"label": "Glass Cube",   "src": "img/atm/glass-cube.jpg"},
-    "halo":         {"label": "Halo",         "src": "img/atm/halo.jpg"},
-    "dark-ridge":   {"label": "Dark Ridge",   "src": "img/atm/dark-ridge.jpg"},
+    "glass-desert": {"label": "Dunes", "src": "img/atm/glass-desert.jpg"},
+    "glass-cube":   {"label": "Charcoal",   "src": "img/atm/glass-cube.jpg"},
+    "halo":         {"label": "Sunrise",         "src": "img/atm/halo.jpg"},
+    "dark-ridge":   {"label": "Mountains",   "src": "img/atm/dark-ridge.jpg"},
 }
 SKINS = ["dark", "light", "midnight", "glass"]  # + "system", resolved client-side
 
