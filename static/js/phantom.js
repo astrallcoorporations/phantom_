@@ -1851,7 +1851,8 @@
     t.querySelector("b").textContent = p.title || p.from;
     t.querySelector("i").textContent = (p.callType === "video" ? "video" : "voice") + " call · @" + p.from;
     t.querySelector("[data-ans]").addEventListener("click", () => {
-      location.href = "/app/calls?call=" + encodeURIComponent(p.convId) + "&type=" + (p.callType || "voice") + "&title=" + encodeURIComponent(p.title || p.from);
+      location.href = "/app/calls?call=" + encodeURIComponent(p.convId) + "&type=" + (p.callType || "voice") +
+        "&title=" + encodeURIComponent(p.title || p.from) + "&room=" + encodeURIComponent(p.room || "");
     });
     t.querySelector("[data-dec]").addEventListener("click", () => t.remove());
     document.body.appendChild(t);

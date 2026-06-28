@@ -10,7 +10,7 @@
     <div class="empty" style="padding:40px 20px">
       <svg class="icon" style="width:20px;height:20px;color:var(--p-text-4)"><use href="#i-calls"/></svg>
       <h3 style="font-size:14px">No calls yet</h3>
-      <p style="font-size:12px">Your call history will appear here. Nothing is ever recorded.</p>
+      <p style="font-size:12px">Start a call from any conversation. Nothing is ever recorded.</p>
     </div>
   </div>
 </aside>
@@ -32,46 +32,13 @@
 
   <!-- ACTIVE CALL STATE -->
   <div class="call-room" id="call-room" hidden>
-    <div class="atmosphere atm-orbit" aria-hidden="true"></div>
-
-    <!-- header bar -->
     <div class="call-room-head">
       <span class="mono call-room-title" id="call-room-title">&gt; PHANTOM_</span>
       <span class="mono call-timer" id="call-timer">00:00</span>
-      <span class="e2e-badge mono"><svg class="icon" style="width:10px;height:10px"><use href="#i-lock"/></svg> E2E</span>
+      <span class="e2e-badge mono"><svg class="icon" style="width:10px;height:10px"><use href="#i-lock"/></svg> ENCRYPTED</span>
     </div>
-
-    <!-- video grid -->
-    <div class="call-grid" id="call-grid">
-      <!-- local tile -->
-      <div class="call-tile call-tile--local" id="local-tile">
-        <video id="local-video" autoplay muted playsinline></video>
-        <div class="call-tile-label mono" id="local-tile-label">you</div>
-        <div class="call-tile-muted" id="local-muted-icon" hidden>
-          <svg class="icon" style="width:14px;height:14px"><use href="#i-mic"/></svg>
-        </div>
-      </div>
-      <!-- remote tiles injected by JS -->
-    </div>
-
-    <!-- controls -->
-    <div class="call-controls-bar">
-      <button class="call-ctrl-btn" id="ctrl-mic" aria-label="Mute microphone" aria-pressed="false" title="Mute">
-        <svg class="icon"><use href="#i-mic"/></svg>
-      </button>
-      <button class="call-ctrl-btn" id="ctrl-cam" aria-label="Toggle camera" aria-pressed="false" title="Camera">
-        <svg class="icon"><use href="#i-video"/></svg>
-      </button>
-      <button class="call-ctrl-btn" id="ctrl-screen" aria-label="Share screen" title="Screen share">
-        <svg class="icon"><use href="#i-screen"/></svg>
-      </button>
-      <button class="call-ctrl-btn call-ctrl-btn--end" id="ctrl-end" aria-label="End call" title="End call">
-        <svg class="icon" style="transform:rotate(135deg)"><use href="#i-calls"/></svg>
-      </button>
-    </div>
-
-    <!-- status bar -->
-    <div class="call-status-bar mono" id="call-status">CONNECTING…</div>
+    <div class="jitsi-wrap" id="jitsi-container"></div>
+    <div class="call-status-bar mono" id="call-status" hidden>CONNECTING…</div>
   </div>
 
   <!-- INCOMING CALL TOAST -->
@@ -96,475 +63,155 @@
 {% block scripts %}
 {% if sb_ready %}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://meet.jit.si/external_api.js"></script>
 <script>
 (function () {
   "use strict";
 
-  // ─── config ───────────────────────────────────────────────────────────────
+  // Calls run over Jitsi's free public infrastructure (meet.jit.si): it brings
+  // its own media servers + STUN/TURN, so NAT traversal works with zero setup.
+  // Phantom only handles the "ring" (who to call) over Supabase Realtime.
   const ME      = document.body.dataset.me || "me";
   const SB_URL  = {{ sb_url | tojson }};
   const SB_ANON = {{ sb_anon | tojson }};
   const sb      = window.supabase.createClient(SB_URL, SB_ANON);
 
-  // ─── state ────────────────────────────────────────────────────────────────
-  let localStream   = null;   // MediaStream from getUserMedia
-  let screenStream  = null;   // MediaStream from getDisplayMedia
-  let peers         = {};     // handle → RTCPeerConnection
-  let callChannel   = null;   // Supabase realtime channel for signaling
-  let currentConvId = null;   // e.g. "dm-alice" or "space-abc123"
-  let callType      = "voice";// "voice" | "video"
-  let callStartTs   = null;
-  let timerInterval = null;
-  let micOn         = true;
-  let camOn         = false;
-  let iceServers    = [{ urls: "stun:stun.l.google.com:19302" }];
+  let jitsi = null, callType = "voice", callStartTs = null, timerInterval = null;
 
-  // ─── DOM refs ─────────────────────────────────────────────────────────────
-  const $idle       = document.getElementById("call-idle");
-  const $room       = document.getElementById("call-room");
-  const $incoming   = document.getElementById("call-incoming");
-  const $grid       = document.getElementById("call-grid");
-  const $status     = document.getElementById("call-status");
-  const $timer      = document.getElementById("call-timer");
-  const $roomTitle  = document.getElementById("call-room-title");
-  const $ctrlMic    = document.getElementById("ctrl-mic");
-  const $ctrlCam    = document.getElementById("ctrl-cam");
-  const $ctrlScreen = document.getElementById("ctrl-screen");
-  const $ctrlEnd    = document.getElementById("ctrl-end");
-  const $btnAnswer  = document.getElementById("btn-answer");
-  const $btnDecline = document.getElementById("btn-decline");
-  const $localVideo = document.getElementById("local-video");
+  const $idle      = document.getElementById("call-idle");
+  const $room      = document.getElementById("call-room");
+  const $incoming  = document.getElementById("call-incoming");
+  const $timer     = document.getElementById("call-timer");
+  const $roomTitle = document.getElementById("call-room-title");
+  const $btnAnswer = document.getElementById("btn-answer");
+  const $btnDecline= document.getElementById("btn-decline");
+  const $container = document.getElementById("jitsi-container");
 
-  // ─── fetch ICE servers from /api/ice ──────────────────────────────────────
-  async function loadIce() {
-    try {
-      const r = await fetch("/api/ice");
-      const d = await r.json();
-      if (d.iceServers) iceServers = d.iceServers;
-    } catch (_) {}
+  // Deterministic, hard-to-guess room id so both sides land in the same place.
+  function roomName(convId, peer) {
+    let base;
+    if (convId && convId.indexOf("space-") === 0) base = "space:" + convId.slice(6);
+    else base = "dm:" + [ME, (peer || "")].map(s => s.toLowerCase()).sort().join("|");
+    // small deterministic hash → opaque, stable room name
+    let h = 0x811c9dc5;
+    const s = "phantom" + base;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return "phantom" + base.replace(/[^a-z0-9]/gi, "") .slice(0, 18) + h.toString(36);
   }
 
-  // ─── peer factory ─────────────────────────────────────────────────────────
-  function makePeer(handle, isInitiator) {
-    const pc = new RTCPeerConnection({ iceServers });    pc._retryCount = 0;    peers[handle] = pc;
-
-    // add local tracks
-    if (localStream) {
-      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-    }
-
-    // on remote track → route audio to a dedicated <audio> sink (always plays,
-    // even when there's no video), video to the visible tile.
-    pc.ontrack = (ev) => {
-      const stream = ev.streams[0] || (function () {
-        const s = peers[handle]._rs || (peers[handle]._rs = new MediaStream());
-        s.addTrack(ev.track); return s;
-      })();
-
-      if (ev.track.kind === "audio") {
-        let aud = document.getElementById("audio-" + handle);
-        if (!aud) {
-          aud = document.createElement("audio");
-          aud.id = "audio-" + handle;
-          aud.autoplay = true; aud.playsInline = true;
-          document.body.appendChild(aud);
-        }
-        aud.srcObject = stream;
-        aud.play().catch(() => {});
-      }
-
-      let tile = document.getElementById("tile-" + handle);
-      if (!tile) { tile = buildRemoteTile(handle); $grid.appendChild(tile); }
-      const vid = tile.querySelector("video");
-      vid.srcObject = stream;
-      if (ev.track.kind === "video") { vid.hidden = false; vid.play().catch(() => {}); }
-      updateGridLayout();
-    };
-
-    // ICE → signal
-    pc.onicecandidate = (ev) => {
-      if (ev.candidate) {
-        if (ev.candidate.type === "relay" || /(\s|^)relay(\s|$)/.test(ev.candidate.candidate || "")) pc._sawRelay = true;
-        signal({ type: "ice", to: handle, candidate: ev.candidate });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      const s = pc.connectionState;
-      if (s === "connecting") setStatus("CONNECTING…");
-      else if (s === "connected") setStatus("CONNECTED · E2E ACTIVE");
-      else if (s === "failed") {
-        if (pc._retryCount < 2) {
-          pc._retryCount += 1;
-          setStatus("CONNECTION FAILED — retrying (" + pc._retryCount + ")");
-          try { pc.restartIce(); } catch (_) {}
-        } else {
-          setStatus(pc._sawRelay
-            ? "CONNECTION FAILED — check your network/firewall"
-            : "NO TURN RELAY — a TURN server is needed (see CALLS.md)");
-          try { pc.close(); } catch (_) {}
-        }
-      }
-      else if (s === "closed") removePeer(handle);
-    };
-    pc.oniceconnectionstatechange = () => {
-      const i = pc.iceConnectionState;
-      if (i === "checking") setStatus("CONNECTING…");
-      else if (i === "connected" || i === "completed") setStatus("CONNECTED · E2E ACTIVE");
-      else if (i === "failed") {
-        if (pc._retryCount < 2) {
-          pc._retryCount += 1;
-          try { pc.restartIce(); } catch (_) {}
-        }
-      }
-    };
-
-    return pc;
-  }
-
-  function removePeer(handle) {
-    if (peers[handle]) { peers[handle].close(); delete peers[handle]; }
-    const tile = document.getElementById("tile-" + handle);
-    if (tile) tile.remove();
-    const aud = document.getElementById("audio-" + handle);
-    if (aud) { aud.srcObject = null; aud.remove(); }
-    updateGridLayout();
-    if (Object.keys(peers).length === 0 && $room && !$room.hidden) {
-      setStatus("CALL ENDED");
-      setTimeout(hangup, 1200);
-    }
-  }
-
-  // ─── signaling via Supabase Realtime broadcast ────────────────────────────
-  function joinSignalChannel(convId) {
-    if (callChannel) { sb.removeChannel(callChannel); callChannel = null; }
-    callChannel = sb.channel("call:" + convId, {
-      config: { broadcast: { self: false }, presence: { key: ME } },
-    })
-      .on("broadcast", { event: "signal" }, ({ payload }) => onSignal(payload))
-      .on("presence", { event: "sync" }, () => {
-        // presence reliably tells us who's in the call. The peer with the
-        // lexicographically smaller handle makes the offer (no glare, no race).
-        const state = callChannel.presenceState();
-        const others = Object.keys(state).filter((h) => h !== ME);
-        if (!others.length) { setStatus("WAITING FOR ANSWER…"); return; }
-        others.forEach((h) => {
-          if (!peers[h]) {
-            setStatus("CONNECTING…");
-            if (ME < h) callPeer(h, true);   // I offer; the other side answers
-          }
-        });
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          try { await callChannel.track({ handle: ME, at: Date.now() }); } catch (_) {}
-        }
-      });
-  }
-
-  function signal(payload) {
-    if (!callChannel) return;
-    callChannel.send({ type: "broadcast", event: "signal",
-                       payload: { ...payload, from: ME } });
-  }
-
-  async function onSignal(msg) {
-    const { from, type, to, offer, answer, candidate } = msg;
-    if (to && to !== ME) return;   // not for us in group calls, could broadcast
-
-    if (type === "call-offer") {
-      // someone is calling — show incoming toast
-      showIncoming(from, msg.callType || "voice", msg.convId, offer);
+  // ─── start / join a call ──────────────────────────────────────────────────
+  function startCall(convId, type, title, participants, room) {
+    if (!$room.hidden) return;                          // already in a call
+    if (typeof JitsiMeetExternalAPI === "undefined") {
+      alert("Calling is still loading — give it a second and try again.");
       return;
     }
-    if (type === "call-joined") {
-      // a new peer joined our call — we (the existing member) send them the offer
-      if (currentConvId && $room && !$room.hidden && !peers[from]) {
-        await callPeer(from, true);
-      }
-      return;
-    }
-    if (type === "call-ended") {
-      removePeer(from);
-      return;
-    }
-    if (type === "offer") {
-      let pc = peers[from];
-      if (!pc) pc = makePeer(from, false);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      await flushIce(from);                                   // apply any buffered candidates
-      const ans = await pc.createAnswer();
-      await pc.setLocalDescription(ans);
-      signal({ type: "answer", to: from, answer: ans });
-      return;
-    }
-    if (type === "answer") {
-      const pc = peers[from];
-      if (pc && pc.signalingState !== "stable") {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        await flushIce(from);
-      }
-      return;
-    }
-    if (type === "ice") {
-      const pc = peers[from];
-      const cand = new RTCIceCandidate(candidate);
-      // buffer candidates that arrive before the remote description is set,
-      // otherwise addIceCandidate throws and the candidate is lost → stuck.
-      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-        try { await pc.addIceCandidate(cand); } catch (_) {}
-      } else {
-        (pendingIce[from] = pendingIce[from] || []).push(cand);
-      }
-    }
+    callType = type || "voice";
+    const peer = (participants && participants[0]) || "";
+    const rn = room || roomName(convId, peer);
+    $roomTitle.textContent = "> " + (title || convId || "CALL").toUpperCase();
+
+    showRoom();
+    $container.innerHTML = "";
+    jitsi = new JitsiMeetExternalAPI("meet.jit.si", {
+      roomName: rn,
+      parentNode: $container,
+      width: "100%", height: "100%",
+      userInfo: { displayName: ME },
+      configOverwrite: {
+        startWithVideoMuted: callType !== "video",
+        startWithAudioMuted: false,
+        prejoinPageEnabled: false,
+        disableDeepLinking: true,
+        disableInviteFunctions: true,
+        p2p: { enabled: true },
+      },
+      interfaceConfigOverwrite: {
+        DEFAULT_BACKGROUND: "#080808",
+        TOOLBAR_BUTTONS: ["microphone", "camera", "desktop", "tileview", "fullscreen", "hangup"],
+        SHOW_JITSI_WATERMARK: false, SHOW_WATERMARK_FOR_GUESTS: false,
+        MOBILE_APP_PROMO: false, HIDE_DEEP_LINKING_LOGO: true,
+        DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+      },
+    });
+    jitsi.addListener("videoConferenceJoined", () => setStatus("CONNECTED"));
+    jitsi.addListener("readyToClose", hangup);
+    jitsi.addListener("participantLeft", () => {});
+
+    // ring everyone we're calling on their personal channel
+    (participants || []).forEach((p) => ringPeer(p, convId, callType, title, rn));
   }
 
-  const pendingIce = {};
-  async function flushIce(handle) {
-    const arr = pendingIce[handle] || [];
-    pendingIce[handle] = [];
-    for (const c of arr) {
-      try { await peers[handle].addIceCandidate(c); } catch (_) {}
-    }
-  }
-
-  // ─── initiate call with one peer ──────────────────────────────────────────
-  async function callPeer(handle, sendOffer = true) {
-    const pc = makePeer(handle, true);
-    if (sendOffer) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      signal({ type: "offer", to: handle, offer });
-    }
-  }
-
-  // ─── PUBLIC: start a call ─────────────────────────────────────────────────
-  async function startCall(convId, type, title, participants) {
-    if ($room && !$room.hidden) return; // already in call
-    callType      = type || "voice";
-    currentConvId = convId;
-    $roomTitle.textContent = "> " + (title || convId).toUpperCase();
-
-    await loadIce();
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === "video" ? { width: 1280, height: 720 } : false,
-      });
-    } catch (err) {
-      alert("Could not access " + (callType === "video" ? "camera/mic" : "microphone") +
-            ".\n" + err.message);
-      return;
-    }
-
-    $localVideo.srcObject = localStream;
-    if (callType === "video") {
-      $localVideo.hidden = false;
-    }
-
-    // join the call channel; presence sync handles offer/answer negotiation
-    joinSignalChannel(convId);
-
-    // ring each participant on their personal channel so they see the incoming call
-    (participants || []).forEach((p) => ringPeer(p, convId, callType, title));
-
-    showRoom(title);
-  }
-
-  // ─── ring a peer on their personal channel ───────────────────────────────
-  function ringPeer(peer, convId, type, title) {
+  function ringPeer(peer, convId, type, title, room) {
+    if (!peer) return;
     const ch = sb.channel("call-ring:" + peer);
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         ch.send({ type: "broadcast", event: "signal",
-                  payload: { type: "call-offer", from: ME, convId, callType: type, title } });
+                  payload: { type: "call-offer", from: ME, convId, callType: type, title, room } });
         setTimeout(() => sb.removeChannel(ch), 1800);
       }
     });
   }
 
-  // ─── answer incoming ──────────────────────────────────────────────────────
-  let pendingOffer = null; // { from, offer, convId, callType }
-
-  function showIncoming(from, type, convId, offer) {
-    pendingOffer = { from, offer, convId, type };
-    document.getElementById("incoming-avatar").textContent =
-      (from || "_")[0].toLowerCase() + "_";
-    document.getElementById("incoming-name").textContent = from;
-    document.getElementById("incoming-type").textContent =
-      type === "video" ? "video call" : "voice call";
+  // ─── incoming ──────────────────────────────────────────────────────────────
+  let pending = null;
+  function showIncoming(p) {
+    pending = p;
+    document.getElementById("incoming-avatar").textContent = (p.from || "_")[0].toLowerCase() + "_";
+    document.getElementById("incoming-name").textContent = p.from;
+    document.getElementById("incoming-type").textContent = p.callType === "video" ? "video call" : "voice call";
     $incoming.hidden = false;
   }
-
   $btnAnswer.addEventListener("click", () => {
     $incoming.hidden = true;
-    const p = pendingOffer; pendingOffer = null;
-    if (!p) return;
-    startCall(p.convId, p.type, p.from, []);   // join → announce → they offer us
+    const p = pending; pending = null;
+    if (p) startCall(p.convId, p.callType, p.from, [], p.room);  // join the caller's room, don't ring back
   });
+  $btnDecline.addEventListener("click", () => { $incoming.hidden = true; pending = null; });
 
-  $btnDecline.addEventListener("click", () => {
-    $incoming.hidden = true;
-    pendingOffer = null;
-  });
-
-  // ─── room UI ──────────────────────────────────────────────────────────────
-  function showRoom(title) {
-    $idle.hidden = true;
-    $room.hidden = false;
+  // ─── room UI + timer ─────────────────────────────────────────────────────
+  function showRoom() {
+    $idle.hidden = true; $room.hidden = false;
     callStartTs = Date.now();
     timerInterval = setInterval(tickTimer, 1000);
     setStatus("CONNECTING…");
-    micOn = true; camOn = callType === "video";
-    updateCtrlStates();
   }
-
-  function setStatus(s) { $status.textContent = s; }
-
+  function setStatus(s) { const el = document.getElementById("call-status"); if (el) el.textContent = s; }
   function tickTimer() {
     const s = Math.floor((Date.now() - callStartTs) / 1000);
-    if (s >= 5400) { setStatus("90-MIN LIMIT REACHED"); hangup(); return; }
-    const m = String(Math.floor(s / 60)).padStart(2, "0");
-    const sec = String(s % 60).padStart(2, "0");
-    $timer.textContent = m + ":" + sec;
+    if (s >= 5400) { hangup(); return; }                // 90-minute cap
+    $timer.textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
   }
 
-  // ─── controls ─────────────────────────────────────────────────────────────
-  $ctrlMic.addEventListener("click", () => {
-    micOn = !micOn;
-    if (localStream) {
-      localStream.getAudioTracks().forEach(t => (t.enabled = micOn));
-    }
-    $ctrlMic.setAttribute("aria-pressed", String(!micOn));
-    $ctrlMic.classList.toggle("active-off", !micOn);
-    document.getElementById("local-muted-icon").hidden = micOn;
-  });
-
-  $ctrlCam.addEventListener("click", async () => {
-    camOn = !camOn;
-    if (camOn) {
-      try {
-        const vs = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
-        const vt = vs.getVideoTracks()[0];
-        localStream.addTrack(vt);
-        Object.values(peers).forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
-          if (sender) sender.replaceTrack(vt);
-          else pc.addTrack(vt, localStream);
-        });
-        $localVideo.hidden = false;
-      } catch (_) { camOn = false; }
-    } else {
-      localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
-      $localVideo.hidden = true;
-    }
-    $ctrlCam.setAttribute("aria-pressed", String(!camOn));
-    $ctrlCam.classList.toggle("active-off", !camOn);
-  });
-
-  $ctrlScreen.addEventListener("click", async () => {
-    if (screenStream) {
-      screenStream.getTracks().forEach(t => t.stop());
-      screenStream = null;
-      $ctrlScreen.classList.remove("active-on");
-      // restore camera track in senders
-      const vt = localStream.getVideoTracks()[0];
-      if (vt) Object.values(peers).forEach(pc => {
-        const s = pc.getSenders().find(x => x.track && x.track.kind === "video");
-        if (s) s.replaceTrack(vt);
-      });
-      return;
-    }
-    try {
-      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      const vt = screenStream.getVideoTracks()[0];
-      Object.values(peers).forEach(pc => {
-        const s = pc.getSenders().find(x => x.track && x.track.kind === "video");
-        if (s) s.replaceTrack(vt);
-        else pc.addTrack(vt, screenStream);
-      });
-      $localVideo.srcObject = screenStream;
-      $localVideo.hidden = false;
-      $ctrlScreen.classList.add("active-on");
-      vt.onended = () => {
-        $ctrlScreen.click(); // auto-stop
-      };
-    } catch (_) {}
-  });
-
-  $ctrlEnd.addEventListener("click", hangup);
-
   function hangup() {
-    signal({ type: "call-ended" });
-    Object.values(peers).forEach(pc => pc.close());
-    peers = {};
-    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-    if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
-    if (callChannel) { sb.removeChannel(callChannel); callChannel = null; }
+    try { if (jitsi) jitsi.dispose(); } catch (_) {}
+    jitsi = null;
     clearInterval(timerInterval);
-    // clear remote tiles
-    $grid.querySelectorAll(".call-tile:not(.call-tile--local)").forEach(t => t.remove());
-    document.querySelectorAll("audio[id^='audio-']").forEach(a => { a.srcObject = null; a.remove(); });
-    $localVideo.srcObject = null;
-    $localVideo.hidden = true;
-    $room.hidden = true;
-    $idle.hidden = false;
-    currentConvId = null;
+    $container.innerHTML = "";
+    $room.hidden = true; $idle.hidden = false;
     $timer.textContent = "00:00";
   }
 
-  function updateCtrlStates() {
-    $ctrlMic.classList.toggle("active-off", !micOn);
-    $ctrlCam.classList.toggle("active-off", !camOn);
-  }
-
-  // ─── tile helpers ─────────────────────────────────────────────────────────
-  function buildRemoteTile(handle) {
-    const tile = document.createElement("div");
-    tile.className = "call-tile";
-    tile.id = "tile-" + handle;
-    tile.innerHTML = `
-      <video autoplay playsinline muted hidden></video>
-      <div class="call-tile-avatar">${handle[0].toLowerCase()}_</div>
-      <div class="call-tile-label mono">${handle}</div>
-    `;
-    return tile;
-  }
-
-  function updateGridLayout() {
-    const n = $grid.querySelectorAll(".call-tile").length;
-    $grid.dataset.count = n;
-  }
-
-  // ─── listen for incoming calls globally (even on idle screen) ────────────
-  // subscribe to a personal channel so anyone can ring us
-  const personalCh = sb.channel("call-ring:" + ME, { config: { broadcast: { self: false } } })
+  // ─── listen for incoming calls globally ──────────────────────────────────
+  sb.channel("call-ring:" + ME, { config: { broadcast: { self: false } } })
     .on("broadcast", { event: "signal" }, ({ payload }) => {
-      if (payload.type === "call-offer" && ($room.hidden)) {
-        showIncoming(payload.from, payload.callType || "voice", payload.convId, payload.offer);
-      }
+      if (payload && payload.type === "call-offer" && $room.hidden) showIncoming(payload);
     })
     .subscribe();
 
-  // ─── expose so messages.html call buttons can trigger ─────────────────────
-  window.__phantomCall = {
-    start: startCall,
-    hangup,
-  };
+  window.__phantomCall = { start: startCall, hangup };
 
-  // ─── check for ?call= param (navigated here from messages) ────────────────
-  const urlp = new URLSearchParams(location.search);
-  const callConvId = urlp.get("call");
-  const callTypeP  = urlp.get("type") || "voice";
-  const callTitle  = urlp.get("title") || callConvId;
-  const callPeers  = (urlp.get("peers") || "").split(",").filter(Boolean);
-
+  // ─── auto-start when navigated from a conversation (?call=…) ───────────────
+  const q = new URLSearchParams(location.search);
+  const callConvId = q.get("call");
   if (callConvId) {
-    // small delay to let Supabase connect
-    setTimeout(() => startCall(callConvId, callTypeP, callTitle, callPeers), 600);
+    const type  = q.get("type") || "voice";
+    const title = q.get("title") || callConvId;
+    const peers = (q.get("peers") || "").split(",").filter(Boolean);
+    const room  = q.get("room") || "";
+    setTimeout(() => startCall(callConvId, type, title, peers, room), 400);
   }
-
-  updateGridLayout();
 })();
 </script>
 {% endif %}
