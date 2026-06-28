@@ -81,7 +81,7 @@
       </div>
       {% else %}
       <div class="apps-empty">
-        <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+        <img class="empty-art" src="{{ url_for('static', filename='img/3d/game.png') }}" alt="" width="92" height="92">
         <h2>No apps yet</h2>
         <p>Be the first — publish an HTML/JS or Python app and it'll appear here once approved.</p>
         <a class="btn btn--solid" href="{{ url_for('apps_new') }}">Publish the first app</a>

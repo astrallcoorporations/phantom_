@@ -208,7 +208,7 @@
   {% elif active and not active.allowed %}
   <div class="atmosphere atm-dark-ridge" aria-hidden="true"></div>
   <div class="chat-welcome">
-    <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+    <img class="empty-art" src="{{ url_for('static', filename='img/3d/lockkey.png') }}" alt="" width="92" height="92">
     <h2>This space is private</h2>
     <p>Ask the owner to add you by username.</p>
     <a class="btn" href="{{ url_for('spaces_view') }}">Back to spaces</a>
@@ -216,7 +216,7 @@
   {% else %}
   <div class="atmosphere atm-frozen-peaks" aria-hidden="true"></div>
   <div class="chat-welcome">
-    <span class="cube cube--lg" aria-hidden="true"><span class="cube-core"></span></span>
+    <img class="empty-art" src="{{ url_for('static', filename='img/3d/ghost.png') }}" alt="" width="100" height="100">
     <h2>Welcome to Phantom</h2>
     <p>Choose a conversation, talk to Phantom AI, or start one with someone.</p>
     <a class="btn btn--solid" href="{{ url_for('messages', conv_id='ai') }}">Talk to Phantom AI</a>

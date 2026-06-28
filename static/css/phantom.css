@@ -2477,3 +2477,25 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
 .moment-del:hover { color: var(--p-danger); }
 .moment-note { margin: 10px 0 0; font-size: 15px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .moment-img { margin-top: 10px; max-width: 100%; max-height: 440px; border-radius: 10px; display: block; }
+
+/* ==========================================================================
+   v13 — 3D illustrations (Fluent emoji, MIT) on onboarding + empty states
+   ========================================================================== */
+.ob-art { display: block; margin: 0 auto 18px; width: 110px; height: 110px;
+  object-fit: contain; filter: drop-shadow(0 14px 28px rgba(0,0,0,.45));
+  animation: ob-float 4.5s ease-in-out infinite; }
+.ob2-step { animation: ob-in .4s var(--ease, ease) both; }
+@keyframes ob-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes ob-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+.empty-art { width: 92px; height: 92px; object-fit: contain; margin: 0 auto 6px;
+  display: block; filter: drop-shadow(0 12px 24px rgba(0,0,0,.4));
+  animation: ob-float 5s ease-in-out infinite; }
+.call-avatar-lg.has-art { background: none; }
+.call-avatar-lg img { width: 96px; height: 96px; object-fit: contain;
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,.4)); animation: ob-float 5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-art, .empty-art, .call-avatar-lg img { animation: none; }
+  .ob2-step { animation: none; }
+}

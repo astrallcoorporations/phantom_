@@ -28,6 +28,7 @@
 
       <!-- 1 · welcome -->
       <section class="ob2-step" data-s="0">
+        <img class="ob-art" src="{{ url_for('static', filename='img/3d/ghost.png') }}" alt="" width="120" height="120">
         <span class="mono ob2-logo" data-logo4>&gt; PHANTOM_</span>
         <h1>Private. Encrypted. Yours.</h1>
         <p>Built for people who don't compromise.</p>
@@ -36,6 +37,7 @@
 
       <!-- 2 · identity -->
       <section class="ob2-step" data-s="1" hidden>
+        <img class="ob-art" src="{{ url_for('static', filename='img/3d/sparkles.png') }}" alt="" width="104" height="104">
         <h1>Choose your name</h1>
         <p>This is all phantom ever asks for.</p>
         <div class="field"><input type="text" id="ob2-name" placeholder="display name" maxlength="40" aria-label="Display name"></div>
@@ -47,6 +49,7 @@
 
       <!-- 3 · encryption keys -->
       <section class="ob2-step" data-s="2" hidden>
+        <img class="ob-art" src="{{ url_for('static', filename='img/3d/lockkey.png') }}" alt="" width="104" height="104">
         <h1>Your keys are being generated</h1>
         <p>X25519 keypair, generated on this device.<br>Your private key never leaves this browser.</p>
         <div class="keyring" id="ob2-keyring"><svg class="icon" style="width:24px;height:24px"><use href="#i-lock"/></svg></div>
@@ -58,6 +61,7 @@
 
       <!-- 4 · theme -->
       <section class="ob2-step" data-s="3" hidden>
+        <img class="ob-art" src="{{ url_for('static', filename='img/3d/palette.png') }}" alt="" width="104" height="104">
         <h1>How should Phantom look?</h1>
         <p>Change it anytime in Settings.</p>
         <div class="theme-cards">
