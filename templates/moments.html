@@ -8,51 +8,23 @@
       <div class="txt">
         <span class="label">MOMENTS</span>
         <h1 data-i18n="moments">Moments</h1>
-        <p>Share a fleeting thought or photo with everyone. Moments fade after 24 hours.</p>
+        <p>The messages you pinned — kept here for you, private and permanent. Pin any message from a chat to save it.</p>
       </div>
     </header>
 
-    {% if not user.guest or my_handle %}
-    <form class="moment-composer panel" id="moment-form">
-      <textarea name="note" id="moment-note" placeholder="What's happening right now…"
-                maxlength="500" rows="2" aria-label="Write a moment"></textarea>
-      <div class="moment-preview" id="moment-preview" hidden>
-        <img id="moment-preview-img" alt="attached photo">
-        <button type="button" class="moment-preview-x" id="moment-preview-x" aria-label="Remove photo">✕</button>
-      </div>
-      <div class="moment-composer-bar">
-        <input type="file" id="moment-file" accept="image/*" hidden>
-        <button type="button" class="icon-btn" id="moment-attach" aria-label="Add photo" title="Add photo">
-          <svg class="icon"><use href="#i-media"/></svg>
-        </button>
-        <div class="moment-atms" id="moment-atms" role="radiogroup" aria-label="Accent">
-          {% for key in ['glass-cube','halo','orbit','moon-horizon','dark-ridge'] %}
-          <button type="button" class="moment-atm{{ ' active' if loop.first }}" data-atm="{{ key }}"
-                  style="background-image:url('{{ url_for('static', filename=atmospheres.get(key, atmospheres['moon-horizon']).src) }}')"
-                  aria-label="{{ key }}"></button>
-          {% endfor %}
-        </div>
-        <span class="char-count" id="moment-count" style="margin-inline-start:auto"></span>
-        <button class="btn btn--solid mono" type="submit" id="moment-post">Post</button>
-      </div>
-    </form>
-    {% endif %}
-
     <div class="moments-feed" id="moments-feed">
       {% for m in moments %}
-      <article class="moment-card panel" data-id="{{ m.id }}" data-kind="{{ m.kind }}">
+      <article class="moment-card panel" data-id="{{ m.id }}">
         <span class="moment-accent atm-{{ m.atmosphere }}" aria-hidden="true"></span>
         <header class="moment-card-head">
-          <span class="avatar" aria-hidden="true">{{ (m.author_name or '?')[:2] | lower }}</span>
+          <span class="moment-pin" aria-hidden="true"><svg class="icon" style="width:14px;height:14px"><use href="#i-pin"/></svg></span>
           <div class="moment-who">
-            <b>{{ m.author_name }}</b>
-            <span class="mono moment-when" data-ts="{{ m.created_at }}">·</span>
+            {% if m.source %}<b>{{ m.source }}</b>{% else %}<b>Pinned</b>{% endif %}
+            <span class="mono moment-when" data-ts="{{ m.created_at }}"></span>
           </div>
-          {% if m.author == my_handle or user.admin %}
-          <button class="icon-btn moment-del" data-del="{{ m.id }}" aria-label="Delete moment" title="Delete">
-            <svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg>
+          <button class="icon-btn moment-del" data-del="{{ m.id }}" aria-label="Unpin" title="Unpin">
+            <svg class="icon" style="width:13px;height:13px"><use href="#i-pin"/></svg>
           </button>
-          {% endif %}
         </header>
         {% if m.note %}<p class="moment-note">{{ m.note }}</p>{% endif %}
         {% if m.media_url %}<img class="moment-img" loading="lazy" src="{{ m.media_url }}" alt="">{% endif %}
@@ -62,8 +34,9 @@
 
     <div class="empty" id="moments-empty" {% if moments %}hidden{% endif %}>
       <img class="empty-art" src="{{ url_for('static', filename='img/3d/telescope.png') }}" alt="" width="92" height="92">
-      <h3>No moments yet</h3>
-      <p>Be the first — share a thought or a photo above. It'll appear here for everyone, then fade in 24 hours.</p>
+      <h3>Nothing pinned yet</h3>
+      <p>Hover any message in a chat and tap the pin — it lands here, saved just for you.</p>
+      <a class="btn btn--solid" href="{{ url_for('messages', conv_id='ai') }}">Open a chat</a>
     </div>
   </div>
 </div>

@@ -560,13 +560,14 @@
     const pin = document.createElement("button");
     pin.innerHTML = '<svg class="icon"><use href="#i-pin"/></svg>';
     pin.setAttribute("aria-label", "Pin to moments");
-    pin.addEventListener("click", () => {
-      store.addPin({
-        id: opts.id, kind: "text",
-        title: opts.body.length > 48 ? "“" + opts.body.slice(0, 48) + "…”" : "“" + opts.body + "”",
-        note: "pinned from " + opts.title, source: "you", atmosphere: opts.atmosphere || "glass-cube",
-      });
+    pin.addEventListener("click", async () => {
       pin.style.color = "var(--p-accent)";
+      pin.disabled = true;
+      try {
+        await fetch("/api/moments", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: opts.body, source: opts.title || "", atmosphere: opts.atmosphere || "glass-cube" }) });
+        if (window.phantom) window.phantom.toast && window.phantom.toast("Pinned to Moments");
+      } catch (e) {}
     });
     bar.appendChild(pin);
     if (opts.mine) {
@@ -1197,106 +1198,33 @@
      Moments — pins + filters + empty state
      ======================================================================== */
 
+  // Moments = your pinned messages. Pinning happens from chat; here we just
+  // render the saved pins, keep their relative times fresh, and allow unpin.
   function initMoments() {
     const feed = document.getElementById("moments-feed");
     if (!feed) return;
     const empty = document.getElementById("moments-empty");
 
     function timeAgo(ts) {
-      if (!ts) return "now";
+      if (!ts) return "";
       const d = (Date.now() - new Date(ts).getTime()) / 1000;
       if (d < 60) return "just now";
-      if (d < 3600) return Math.floor(d / 60) + "m";
-      if (d < 86400) return Math.floor(d / 3600) + "h";
-      return Math.floor(d / 86400) + "d";
+      if (d < 3600) return Math.floor(d / 60) + "m ago";
+      if (d < 86400) return Math.floor(d / 3600) + "h ago";
+      if (d < 604800) return Math.floor(d / 86400) + "d ago";
+      return new Date(ts).toLocaleDateString();
     }
     function stamp() {
       document.querySelectorAll(".moment-when[data-ts]").forEach((el) => { el.textContent = timeAgo(el.dataset.ts); });
     }
     stamp(); setInterval(stamp, 60000);
 
-    function wireDelete(scope) {
-      scope.querySelectorAll("[data-del]").forEach((b) => {
-        if (b._wired) return; b._wired = 1;
-        b.addEventListener("click", async () => {
-          const card = b.closest(".moment-card");
-          try { await fetch("/api/moments/" + b.dataset.del, { method: "DELETE" }); } catch (e) {}
-          if (card) card.remove();
-          if (empty && !feed.querySelector(".moment-card")) empty.hidden = false;
-        });
-      });
-    }
-    wireDelete(document);
-
-    function addCard(m) {
-      const mine = m.author === ME;
-      const art = document.createElement("article");
-      art.className = "moment-card panel"; art.dataset.id = m.id; art.dataset.kind = m.kind || "text";
-      art.innerHTML =
-        '<span class="moment-accent atm-' + (m.atmosphere || "glass-cube") + '" aria-hidden="true"></span>' +
-        '<header class="moment-card-head"><span class="avatar"></span>' +
-        '<div class="moment-who"><b></b><span class="mono moment-when" data-ts="' + (m.created_at || "") + '"></span></div>' +
-        (mine ? '<button class="icon-btn moment-del" data-del="' + m.id + '" aria-label="Delete"><svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg></button>' : "") +
-        "</header>" +
-        (m.note ? '<p class="moment-note"></p>' : "") +
-        (m.media_url ? '<img class="moment-img" loading="lazy" alt="">' : "");
-      art.querySelector(".avatar").textContent = (m.author_name || "?").slice(0, 2).toLowerCase();
-      art.querySelector(".moment-who b").textContent = m.author_name || m.author || "someone";
-      art.querySelector(".moment-when").textContent = timeAgo(m.created_at);
-      if (m.note) art.querySelector(".moment-note").textContent = m.note;
-      if (m.media_url) art.querySelector(".moment-img").src = m.media_url;
-      wireDelete(art);
-      feed.prepend(art);
-      if (empty) empty.hidden = true;
-    }
-
-    const form = document.getElementById("moment-form");
-    if (!form) return;
-    const note = document.getElementById("moment-note");
-    const fileInput = document.getElementById("moment-file");
-    const preview = document.getElementById("moment-preview");
-    const previewImg = document.getElementById("moment-preview-img");
-    const count = document.getElementById("moment-count");
-    let mediaUrl = "", atmosphere = "glass-cube", uploading = false;
-
-    document.getElementById("moment-attach").addEventListener("click", () => fileInput.click());
-    document.getElementById("moment-preview-x").addEventListener("click", () => {
-      mediaUrl = ""; preview.hidden = true; fileInput.value = "";
-    });
-    fileInput.addEventListener("change", async () => {
-      const f = fileInput.files[0]; if (!f) return;
-      if (!window.sbClient) { alert("Photo upload needs a connection."); return; }
-      uploading = true; previewImg.src = URL.createObjectURL(f); preview.hidden = false;
-      try {
-        const path = (ME || "u") + "/moments/" + Date.now() + "_" + f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const up = await window.sbClient.storage.from("files").upload(path, f, { upsert: true, contentType: f.type });
-        if (!up.error) mediaUrl = window.sbClient.storage.from("files").getPublicUrl(path).data.publicUrl;
-      } catch (e) {}
-      uploading = false;
-    });
-    document.querySelectorAll(".moment-atm").forEach((b) => b.addEventListener("click", () => {
-      document.querySelectorAll(".moment-atm").forEach((x) => x.classList.toggle("active", x === b));
-      atmosphere = b.dataset.atm;
+    document.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+      const card = b.closest(".moment-card");
+      try { await fetch("/api/moments/" + b.dataset.del, { method: "DELETE" }); } catch (e) {}
+      if (card) card.remove();
+      if (empty && !feed.querySelector(".moment-card")) empty.hidden = false;
     }));
-    function upd() { const n = note.value.length; count.textContent = n ? (500 - n) : ""; }
-    note.addEventListener("input", upd); upd();
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const body = note.value.trim();
-      if (!body && !mediaUrl) return;
-      if (uploading) { alert("Still uploading the photo…"); return; }
-      const post = document.getElementById("moment-post"); post.disabled = true;
-      try {
-        const r = await fetch("/api/moments", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: body, media_url: mediaUrl, atmosphere }) });
-        const d = await r.json();
-        if (r.ok && d.moment) addCard(d.moment);
-        else if (d.error) alert(d.error);
-        note.value = ""; mediaUrl = ""; preview.hidden = true; fileInput.value = ""; upd();
-      } catch (e) {}
-      post.disabled = false;
-    });
   }
 
   /* ========================================================================

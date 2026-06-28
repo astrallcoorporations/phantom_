@@ -2512,3 +2512,9 @@ body:not(.bubbles-flat) .bubble-row.me .msg-status.delivered i { background: #b8
   .ob-art, .empty-art, .call-avatar-lg img { animation: none; }
   .ob2-step { animation: none; }
 }
+
+/* v12b — moments as pinned messages */
+.moment-pin { width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+  border-radius: 9px; background: var(--p-accent-soft); color: var(--acc); }
+.moment-card .moment-del:hover { color: var(--acc); }
+.moment-card .moment-note { font-size: 15px; }

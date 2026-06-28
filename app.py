@@ -767,7 +767,10 @@ def recent_moments(hours=24, limit=60):
 @app.route("/app/moments")
 def moments_view():
     ctx = base_context("moments")
-    ctx["moments"] = recent_moments()
+    me = ctx["my_handle"]
+    # Moments = your pinned messages, private to you, kept until you remove them.
+    ctx["moments"] = (sb_rows(lambda c: c.table("moments").select("*")
+                      .eq("author", me).order("created_at", desc=True).limit(120)) if me else [])
     return render_template("moments.html", **ctx)
 
 
@@ -777,13 +780,14 @@ def api_moment_create():
     if not user:
         return jsonify({"error": "Sign in to post a moment."}), 401
     d = request.json or {}
-    note = (d.get("note") or "").strip()[:500]
+    note = (d.get("note") or "").strip()[:1000]
+    source = (d.get("source") or "").strip()[:80]
     media_url = (d.get("media_url") or "").strip()[:600]
     if not note and not media_url:
-        return jsonify({"error": "Write something or add a photo."}), 400
+        return jsonify({"error": "Nothing to pin."}), 400
     atmosphere = d.get("atmosphere") if d.get("atmosphere") in ATMOSPHERES else "glass-cube"
     row = {"author": user_handle(user), "title": (user.get("name") or "")[:60],
-           "note": note, "media_url": media_url, "atmosphere": atmosphere,
+           "note": note, "source": source, "media_url": media_url, "atmosphere": atmosphere,
            "kind": "image" if media_url else "text"}
     try:
         res = sb().table("moments").insert(row).execute()
