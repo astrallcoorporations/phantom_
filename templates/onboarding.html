@@ -10,7 +10,7 @@
   <noscript><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/phantom.css') }}">
   <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#080808">
+  <meta name="theme-color" content="#15120e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
@@ -32,7 +32,7 @@
         <span class="mono ob2-logo" data-logo4>&gt; PHANTOM_</span>
         <h1>Private. Encrypted. Yours.</h1>
         <p>Built for people who don't compromise.</p>
-        <button class="btn mono" data-go="1" style="width:100%;height:48px;background:var(--acc-blue);color:#fff;border-color:transparent">Get Started</button>
+        <button class="btn mono" data-go="1" style="width:100%;height:48px;background:var(--acc);color:var(--acc-ink);border-color:transparent">Get Started</button>
       </section>
 
       <!-- 2 · identity -->
@@ -44,7 +44,7 @@
         <div class="field"><span class="mono" style="color:var(--p-text-4)">@</span>
           <input type="text" id="ob2-handle" placeholder="username" maxlength="24" aria-label="Username" autocomplete="off"></div>
         <div class="ob2-avail mono" id="ob2-avail"></div>
-        <button class="btn mono" data-go="2" style="width:100%;height:44px;background:var(--acc-blue);color:#fff;border-color:transparent">Continue</button>
+        <button class="btn mono" data-go="2" style="width:100%;height:44px;background:var(--acc);color:var(--acc-ink);border-color:transparent">Continue</button>
       </section>
 
       <!-- 3 · encryption keys -->
@@ -55,7 +55,7 @@
         <div class="keyring" id="ob2-keyring"><svg class="icon" style="width:24px;height:24px"><use href="#i-lock"/></svg></div>
         <p class="fingerprint" id="ob2-fp">…</p>
         <button class="btn mono" data-go="3" id="ob2-keys-next" disabled
-                style="width:100%;height:44px;margin-top:14px;background:var(--acc-blue);color:#fff;border-color:transparent;opacity:0.5">
+                style="width:100%;height:44px;margin-top:14px;background:var(--acc);color:var(--acc-ink);border-color:transparent;opacity:0.5">
           I understand — Continue</button>
       </section>
 
@@ -72,7 +72,7 @@
           <button type="button" class="theme-card" data-th="midnight" aria-pressed="false">
             <span class="sw" style="background:#000"></span><span>OLED</span></button>
         </div>
-        <button class="btn mono" id="ob2-finish" style="width:100%;height:48px;background:var(--acc-blue);color:#fff;border-color:transparent">Enter Phantom →</button>
+        <button class="btn mono" id="ob2-finish" style="width:100%;height:48px;background:var(--acc);color:var(--acc-ink);border-color:transparent">Enter Phantom →</button>
       </section>
 
       <p style="margin-top:22px" class="label">E2E ENCRYPTED · ZERO TRACKERS · YOURS</p>

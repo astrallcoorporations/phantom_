@@ -574,7 +574,7 @@ def manifest():
         "description": "Private, encrypted messaging, calls and spaces.",
         "start_url": "/app", "scope": "/", "display": "standalone",
         "orientation": "portrait-primary",
-        "background_color": "#080808", "theme_color": "#080808",
+        "background_color": "#15120e", "theme_color": "#15120e",
         "categories": ["social", "communication"],
         "icons": [
             {"src": base + "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
